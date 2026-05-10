@@ -68,12 +68,12 @@ Cyber-Crypter-main/
 
 #### 1.1) Instalar las herramientas de compilación de C++
 
-1. Abre el menú Inicio, escribe `Visual Studio Installer` y haz clic en el resultado.
+1. Abre `Visual Studio Installer`.
 2. Haz clic en **Modificar** sobre tu instalación de Visual Studio 2022.
 3. En la pestaña **Cargas de trabajo**, marca **"Desarrollo de escritorio con C++"**.
-4. Pulsa **Modificar** (abajo a la derecha) y espera a que se instale.
+4. Pulsa **Modificar** para instalar.
 
-Si el recuadro ya estaba marcado, no necesitas hacer nada.
+> Si el recuadro ya estaba marcado, no necesitas hacer este paso.
 
 #### 1.2) Compilar el stub
 
@@ -91,15 +91,9 @@ cd "C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\stub"
 build.bat
 ```
 
-Al finalizar correctamente verás:
-
-```
-Auto-copied to Resources\stub_template.exe.
-```
-
-`build.bat` compila `stub.c`, produce `stub/build/stub_template.exe` y lo
+Al finalizar, `build.bat` compila `stub.c`, produciendo `stub/build/stub_template.exe` y lo
 copia automáticamente a `Cyber Cripter\Resources\stub_template.exe` (que es
-donde el builder lo busca en runtime).
+donde el builder lo buscará en runtime).
 
 Verificación rápida del layout (opcional):
 
@@ -113,21 +107,16 @@ mitigación.
 
 ### 2) Builder C#
 
-Con MSBuild (ajusta la ruta a tu instalación de VS):
+Abre `Cyber Cripter.sln` en Visual Studio y compila el proyecto.
 
-```cmd
-"C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" ^
-  "Cyber Cripter\Cyber Cripter.csproj" /t:Rebuild /p:Configuration=Debug
-```
-
-O simplemente abriendo `Cyber Cripter.sln` en Visual Studio y compilando.
-
-El binario sale en `Cyber Cripter\bin\Debug\Cyber Cripter.exe`.
+El programa ejecutable se guardará en `Cyber Cripter\bin\Debug\Cyber Cripter.exe`.
 
 ### 3) Colocar `donut.exe`
 
 Descarga `donut.exe` y copialo a `Cyber Cripter\bin\Debug\` (junto al
 ejecutable del builder). También lo encuentra si está en el `PATH`.
+
+> Es muy probable que se deba desactivar el antivirus para la descarga de donut.exe, o agregar el directorio del proyecto a exclusiones de windows defender.
 
 ## Uso
 
