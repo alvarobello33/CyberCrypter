@@ -57,8 +57,8 @@ Cyber-Crypter-main/
 
 ## Requisitos
 
-- **Visual Studio 2019 / 2022** con la workload **C++ Build Tools** (necesario
-  para `cl.exe`, `link.exe`, las cabeceras del Windows SDK y `bcrypt.lib`).
+- **Visual Studio 2019 / 2022** con la workload **Desarrollo de escritorio con C++**
+  (necesario para `cl.exe`, `link.exe`, las cabeceras del Windows SDK y `bcrypt.lib`).
 - **.NET Framework 4.8 SDK** (para compilar el builder C#).
 - **donut.exe** de https://github.com/TheWover/donut/releases.
 
@@ -66,11 +66,35 @@ Cyber-Crypter-main/
 
 ### 1) Stub nativo (una sola vez, o cuando se modifique `stub.c`)
 
-Desde un *x64 Native Tools Command Prompt for VS*:
+#### 1.1) Instalar las herramientas de compilación de C++
+
+1. Abre el menú Inicio, escribe `Visual Studio Installer` y haz clic en el resultado.
+2. Haz clic en **Modificar** sobre tu instalación de Visual Studio 2022.
+3. En la pestaña **Cargas de trabajo**, marca **"Desarrollo de escritorio con C++"**.
+4. Pulsa **Modificar** (abajo a la derecha) y espera a que se instale.
+
+Si el recuadro ya estaba marcado, no necesitas hacer nada.
+
+#### 1.2) Compilar el stub
+
+1. Abre el menú Inicio, escribe `x64 Native Tools` y haz clic en
+   **"x64 Native Tools Command Prompt for VS 2022"**.
+2. En el terminal que se abre, navega a la carpeta `stub`:
 
 ```cmd
-cd stub
+cd "C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\stub"
+```
+
+3. Ejecuta el script de compilación:
+
+```cmd
 build.bat
+```
+
+Al finalizar correctamente verás:
+
+```
+Auto-copied to Resources\stub_template.exe.
 ```
 
 `build.bat` compila `stub.c`, produce `stub/build/stub_template.exe` y lo
