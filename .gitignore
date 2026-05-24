@@ -2,9 +2,13 @@
 Cyber Cripter/bin/
 Cyber Cripter/obj/
 stub/build/
+Cyber Cripter/Resources/stub_template.exe
 
 # Generated outputs
 outputs/
+
+# Claude Code local settings
+.claude/
 
 # Test / scratch files
 *.log

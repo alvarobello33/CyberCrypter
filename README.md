@@ -82,7 +82,7 @@ Cyber-Crypter-main/
 2. En el terminal que se abre, navega a la carpeta `stub`:
 
 ```cmd
-cd "C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\stub"
+cd "\Cyber-Crypter-main\stub"
 ```
 
 3. Ejecuta el script de compilación:
