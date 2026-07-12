@@ -98,10 +98,10 @@ donde el builder lo buscará en runtime).
 Verificación rápida del layout (opcional):
 
 ```cmd
-dumpbin /headers build\stub_template.exe | findstr /B /C:"  SECTION HEADER" /C:"   .cdata" /C:"  size of raw data"
+dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
 ```
 
-`.cdata` debe tener `size of raw data` ≥ `0x100040`. Si sale `0` significa que
+`.cdata` (SECTION HEADER #5) debe tener `size of raw data` ≥ `100040`. Si sale `0` significa que
 MSVC truncó el buffer por optimización BSS; ver `stub/README.md` para la
 mitigación.
 
