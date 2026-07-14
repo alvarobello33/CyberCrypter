@@ -124,9 +124,6 @@
   <data name="engranajes" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\engranajes.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="StubPrueba" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\StubPrueba.txt;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
   <data name="encriptarText" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\encriptarText.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>

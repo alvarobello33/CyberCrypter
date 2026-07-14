@@ -7,7 +7,8 @@ namespace Cyber_Cripter
     // Convierte un .exe arbitrario en shellcode PIC invocando donut.exe como subproceso.
     // Es necesario porque EarlyBird APC ejecuta una dirección de memoria como función,
     // lo que solo funciona con shellcode posicional-independiente, no con un PE (ejecutable).
-    // Descarga donut.exe de https://github.com/TheWover/donut/releases y colócalo
+    //
+    // Se debe descargar donut.exe de https://github.com/TheWover/donut/releases y colocarlo
     // junto al builder (Cyber-Crypter-main\Cyber Cripter\bin\Debug) o en el PATH.
     internal static class Donut
     {
@@ -55,8 +56,7 @@ namespace Cyber_Cripter
                     // Si donut falla o no genera el fichero de salida, lanzar excepción con detalle
                     if (p.ExitCode != 0 || !File.Exists(outBin))
                         throw new InvalidOperationException(
-                            "donut.exe failed (Exit Code: " + p.ExitCode + ").\n" +
-                            "stdout:\n" + stdout + "\nstderr:\n" + stderr);
+                            "donut.exe failed (Exit Code: " + p.ExitCode + ").\n" + "stdout:\n" + stdout + "\nstderr:\n" + stderr);
                 }
 
                 // Leer el shellcode generado y devolverlo como array de bytes
@@ -69,15 +69,29 @@ namespace Cyber_Cripter
             }
         }
 
+
         // Busca donut.exe: primero junto al builder, luego en cada directorio del PATH
         private static string LocateDonut()
         {
-            // Comprobar si está en la misma carpeta que el builder
+            // 1. Comprobar si está en la misma carpeta que el builder
             string appDir = AppDomain.CurrentDomain.BaseDirectory;
             string candidate = Path.Combine(appDir, "donut.exe");
             if (File.Exists(candidate)) return candidate;
 
-            // Recorrer el PATH del sistema buscando donut.exe
+            // 2. Si no está en la misma carpeta que el builder, buscar en las subcarpetas 
+            try
+            {
+                foreach (string file in Directory.EnumerateFiles(appDir, "donut.exe", SearchOption.AllDirectories))
+                {
+                    return file; // Devolver primer "donut.exe" encontrado
+                }
+            }
+            catch
+            {
+                // Ignorar errores de acceso a carpetas
+            }
+
+            // 3. Recorrer el PATH del sistema buscando donut.exe
             string path = Environment.GetEnvironmentVariable("PATH") ?? "";
             foreach (string dir in path.Split(Path.PathSeparator))
             {

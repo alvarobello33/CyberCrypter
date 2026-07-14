@@ -42,6 +42,11 @@
   <ItemGroup>
     <Compile Include="Donut.cs" />
     <Compile Include="Encryption.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="StubBuilder.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
@@ -56,14 +61,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Resources.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
-    </Compile>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -80,15 +80,18 @@
   <ItemGroup>
     <!-- Pre-compiled native stub. Built by stub\build.bat. Conditional so the
          C# project still compiles before the stub has been produced. -->
-    <Content Include="Resources\stub_template.exe" Condition="Exists('Resources\stub_template.exe')">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <!-- donut.exe (https://github.com/TheWover/donut). Drop it next to the
          builder so Donut.cs can find it; conditional so it isn't required to
          build the C# project itself. -->
     <None Include="donut.exe" Condition="Exists('donut.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Content Include="Resources\stub_template.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

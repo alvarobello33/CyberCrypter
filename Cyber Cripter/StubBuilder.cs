@@ -40,25 +40,37 @@ namespace Cyber_Cripter
 
         // Offsets de cada campo dentro de StubMetadata (#pragma pack(1)), contados desde
         // el inicio del magic (16 bytes) hasta el campo correspondiente.
-        private const int OFF_HEAP_MARKER = 16;           // 8 bytes de aleatoriedad por build
-        private const int OFF_TIMESTAMP   = 16 + 8;       // Unix timestamp en LE (u64)
-        private const int OFF_IV          = 16 + 8 + 8;   // IV de AES, 16 bytes aleatorios
-        private const int OFF_HALF1_SIZE  = 16 + 8 + 8 + 16;     // tamaño de half1 (u32 LE)
-        private const int OFF_HALF2_SIZE  = 16 + 8 + 8 + 16 + 4; // tamaño de half2 (u32 LE)
+        private const int OFF_HEAP_MARKER = 16;                     // 8 bytes de aleatoriedad por build
+        private const int OFF_TIMESTAMP   = 16 + 8;                 // Unix timestamp en LE (u64)
+        private const int OFF_IV          = 16 + 8 + 8;             // IV de AES, 16 bytes aleatorios
+        private const int OFF_HALF1_SIZE  = 16 + 8 + 8 + 16;        // tamaño de half1 (u32 LE)
+        private const int OFF_HALF2_SIZE  = 16 + 8 + 8 + 16 + 4;    // tamaño de half2 (u32 LE)
         private const int OFF_HASH_REGION = 16 + 8 + 8 + 16 + 4 + 4; // bytes hasheados (u32 LE)
 
         // Resultado del build que se muestra en el panel de estado de la UI
         public sealed class BuildReport
         {
-            public string OutputPath;    // ruta del fichero generado
-            public int    ShellcodeBytes;  // tamaño del shellcode antes de cifrar
-            public int    CiphertextBytes; // tamaño del ciphertext tras AES
-            public int    Half1Bytes;      // bytes embebidos en .cdata
-            public int    Half2Bytes;      // bytes en el overlay PE
-            public ulong  Timestamp;       // Unix timestamp del build
-            public string KeyHex;          // clave AES derivada en hex (solo educativo)
+            public string OutputPath;       // ruta del fichero generado
+            public int    ShellcodeBytes;   // tamaño del shellcode antes de cifrar
+            public int    CiphertextBytes;  // tamaño del ciphertext tras AES
+            public int    Half1Bytes;       // bytes embebidos en .cdata
+            public int    Half2Bytes;       // bytes en el overlay PE
+            public ulong  Timestamp;        // Unix timestamp del build
+            public string KeyHex;           // clave AES derivada en hex (solo educativo)
         }
 
+        /// <summary>
+        /// Construye el ejecutable final del crypter a partir de la plantilla del stub y
+        /// del shellcode generado por Donut. Durante el proceso localiza las regiones de
+        /// parcheo del stub, genera los metadatos del build, deriva la clave AES, cifra
+        /// el shellcode, divide el texto cifrado entre la sección embebida y el overlay
+        /// PE, parchea la plantilla con la información necesaria para su reconstrucción
+        /// en tiempo de ejecución y escribe el binario resultante en disco.
+        /// </summary>
+        /// <param name="templateBytes">Plantilla binaria del stub que será parcheada.</param>
+        /// <param name="shellcode">Shellcode generado por Donut que se desea utilizar.</param>
+        /// <param name="outputPath">Ruta donde se escribirá el ejecutable final.</param>
+        /// <returns>
         public static BuildReport Build(byte[] templateBytes, byte[] shellcode, string outputPath)
         {
             // Localizar los dos magic markers en el binario para saber dónde parchear

