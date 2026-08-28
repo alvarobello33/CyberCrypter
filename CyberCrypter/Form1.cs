@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Cyber_Cripter
 {
@@ -9,6 +11,37 @@ namespace Cyber_Cripter
         public Form1()
         {
             InitializeComponent();
+
+            statusTextBox.Multiline = true;
+            statusTextBox.ReadOnly = true;
+            statusTextBox.ScrollBars = ScrollBars.Vertical;
+            statusTextBox.WordWrap = false;
+            statusTextBox.AcceptsReturn = true;
+        }
+
+        private static string ByteArrayToHex(byte[] data)
+        {
+            if (data == null)
+                return "<null>";
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine($"[{data.Length} bytes]");
+
+            for (int i = 0; i < data.Length; i++)
+            {
+                sb.Append(data[i].ToString("X2"));
+
+                if ((i + 1) % 16 == 0)
+                    sb.AppendLine();
+                else
+                    sb.Append(' ');
+            }
+
+            if (data.Length % 16 != 0)
+                sb.AppendLine();
+
+            return sb.ToString();
         }
 
         private void browseFile_Click(object sender, EventArgs e)
@@ -18,7 +51,8 @@ namespace Cyber_Cripter
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
                     fileRoute.Text = dlg.FileName;
-                    statusLabel.Text = "";
+                    statusTextBox.Text = "";
+                    
                 }
             }
         }
@@ -65,16 +99,21 @@ namespace Cyber_Cripter
                 byte[] stubTemplate = File.ReadAllBytes(templatePath);
                 var report = StubBuilder.Build(stubTemplate, shellcode, outputPath);
 
-                // Mostrar resumen del build: tamaños, distribución half1/half2, clave derivada
+                // Mostrar resumen del build
                 Show(string.Format(
-                    "Done.\n" +
-                    "  Output path:      {0}\n" +
-                    "  Shellcode:   {1} B  ->  Ciphertext: {2} B\n" +
-                    "  Embedded:    {3} B (.cdata)   Overlay: {4} B\n" +
-                    "  Build ts:    {5}\n" +
-                    "  Derived key: {6}",
+                    "Done.\r\n" +
+                    "  Output path:      {0}\r\n" +
+                    "  Shellcode:   {1} B  ->  Ciphertext: {2} B\r\n" +
+                    "  Embedded:    {3} B (.cdata)   Overlay: {4} B\r\n" +
+                    "  HeapMarker (Hex):\t {5}\r\n" +
+                    "  Stable Region Size:\t {6} B\r\n" +
+                    "  Build Timestamp:    {7} (0x{7:X16})\r\n" +
+                    "  Hash from Stable Region: {8}\r\n" +
+                    "  Derived key: {9}" ,
                     report.OutputPath, report.ShellcodeBytes, report.CiphertextBytes,
-                    report.Half1Bytes, report.Half2Bytes, report.Timestamp, report.KeyHex));
+                    report.Half1Bytes, report.Half2Bytes, report.HeapMarkerHex, report.StableRegion, report.Timestamp, report.HashStableRegion, report.KeyHex));
+
+                
             }
             catch (Exception ex)
             {
@@ -87,14 +126,14 @@ namespace Cyber_Cripter
             }
         }
 
-        // Muestra mensaje por consola (statusLabel)
-        private void Show(string msg, bool error = false)
+        // Muestra mensaje por consola (statusTextBox)
+        public void Show(string msg, bool error = false)
         {
-            statusLabel.ForeColor = error
+            statusTextBox.ForeColor = error
                 ? System.Drawing.Color.IndianRed
                 : System.Drawing.Color.LightGreen;
-            statusLabel.Text = msg;
-            statusLabel.Refresh();
+            statusTextBox.Text = msg;
+            statusTextBox.Refresh();
         }
     }
 }

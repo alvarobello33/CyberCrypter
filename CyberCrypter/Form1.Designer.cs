@@ -22,7 +22,7 @@ namespace Cyber_Cripter
             this.encryptBtn = new System.Windows.Forms.Button();
             this.title = new System.Windows.Forms.Label();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
-            this.statusLabel = new System.Windows.Forms.Label();
+            this.statusTextBox = new System.Windows.Forms.TextBox();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -86,15 +86,16 @@ namespace Cyber_Cripter
             this.pictureBox1.TabStop = false;
             this.pictureBox1.Visible = false;
             // 
-            // statusLabel
+            // statusTextBox
             // 
-            this.statusLabel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(22)))), ((int)(((byte)(26)))));
-            this.statusLabel.Font = new System.Drawing.Font("Consolas", 9F);
-            this.statusLabel.ForeColor = System.Drawing.Color.LightGreen;
-            this.statusLabel.Location = new System.Drawing.Point(24, 248);
-            this.statusLabel.Name = "statusLabel";
-            this.statusLabel.Size = new System.Drawing.Size(548, 200);
-            this.statusLabel.TabIndex = 5;
+            this.statusTextBox.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(23)))), ((int)(((byte)(28)))));
+            this.statusTextBox.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.statusTextBox.Location = new System.Drawing.Point(29, 267);
+            this.statusTextBox.Multiline = true;
+            this.statusTextBox.Name = "statusTextBox";
+            this.statusTextBox.ReadOnly = true;
+            this.statusTextBox.Size = new System.Drawing.Size(535, 175);
+            this.statusTextBox.TabIndex = 5;
             // 
             // Form1
             // 
@@ -102,7 +103,7 @@ namespace Cyber_Cripter
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(35)))), ((int)(((byte)(39)))), ((int)(((byte)(42)))));
             this.ClientSize = new System.Drawing.Size(596, 470);
-            this.Controls.Add(this.statusLabel);
+            this.Controls.Add(this.statusTextBox);
             this.Controls.Add(this.pictureBox1);
             this.Controls.Add(this.encryptBtn);
             this.Controls.Add(this.browseFile);
@@ -112,6 +113,7 @@ namespace Cyber_Cripter
             this.Text = "CYBER CRIPTER";
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
@@ -122,6 +124,6 @@ namespace Cyber_Cripter
         private System.Windows.Forms.Label fileRoute;
         private System.Windows.Forms.Button browseFile;
         private System.Windows.Forms.PictureBox pictureBox1;
-        private System.Windows.Forms.Label statusLabel;
+        private System.Windows.Forms.TextBox statusTextBox;
     }
 }

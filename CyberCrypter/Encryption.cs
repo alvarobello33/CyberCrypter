@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Security.Cryptography;
 
@@ -63,7 +64,8 @@ namespace Cyber_Cripter
             System.Buffer.BlockCopy(heapMarker, 0, buf, 0, 8);
             System.Buffer.BlockCopy(stubBytes,  0, buf, 8, hashRegion);
             // little-endian uint64 timestamp (coincide con MSVC x64 layout de g_meta.timestamp)
-            for (int i = 0; i < 8; i++) buf[8 + hashRegion + i] = (byte)(timestamp >> (8 * i));
+            // Version anterior: Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, buf, 8 + hashRegion, 8);
+            System.Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, buf, 8 + hashRegion, 8);
             return Sha256(buf);
         }
     }

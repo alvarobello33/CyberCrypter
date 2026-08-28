@@ -1,4 +1,4 @@
-# Cyber Cripter
+# Cyber Crypter
 
 Crypter educativo para una asignatura de Computer Security. Toma un `.exe`
 arbitrario, lo convierte a shellcode posicional-independiente con

