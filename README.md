@@ -45,11 +45,12 @@ Cyber-Crypter-main/
 │   └── Resources/
 │       └── stub_template.exe     # producido por stub/build.bat
 ├── stub/                         # Stub nativo (C, MSVC x64)
-│   ├── stub.c
+│   ├── stub_EarlyBirdAPC.c
+│   ├── stub_IndirectSC.c
+│   ├── stub_Test.c
 │   ├── build.bat
 │   └── README.md
-├── outputs/                      # destino de los binarios crypteados
-└── CLAUDE.md                     # notas de arquitectura para Claude Code
+└── outputs/                      # destino de los binarios crypteados
 ```
 
 ## Requisitos
