@@ -1,70 +1,78 @@
-# Stub template
+# Stub Template
 
-Native C stub compiled once and bundled with the C# builder as a binary
-template. The builder patches it on every encrypt operation — it never
-recompiles the stub.
+The Stub is the native loader responsible for reconstructing and decrypting the shellcode and, finally, executing it in memory using the technique implemented by the template selected at build time.
+
+The selected template is compiled only once and used by the C# builder as a final executable template. The builder patches it (by modifying the custom sections) during every encryption operation; it never recompiles the stub.
 
 ## Build prerequisites
 
-- Visual Studio 2019 or 2022 with the **C++ Build Tools** workload (for `cl.exe`,
-  `link.exe`, the Windows SDK headers, and `bcrypt.lib`).
-- A "x64 Native Tools Command Prompt for VS" (the Start Menu has a shortcut
-  installed by VS), or run `vcvars64.bat` manually to set up the env.
+- Visual Studio 2019 or 2022 with the **C++ Build Tools** workload (for `cl.exe`, `link.exe`, Windows SDK headers, and `bcrypt.lib`).
+- The `x64 Native Tools Command Prompt for VS` tool, which is installed with VS and can be launched from the Start menu (or run `vcvars64.bat` manually to configure the environment).
 
 ## Build
+
+Open `x64 Native Tools Command Prompt for VS` and move to the current directory:
+
+```
+cd CyberCrypter/stub
+```
+
+Then build the default template (`EarlyBirdAPC`) by running:
 
 ```cmd
 build.bat
 ```
 
-This produces `build\stub_template.exe` and auto-copies it to
-`..\Cyber Cripter\Resources\stub_template.exe`, which is where the C# builder
-loads it from at runtime.
-
-## Verify the template is patchable
-
-After building, do a quick sanity check on the section layout:
+Other templates can also be built by supplying their name as an argument:
 
 ```cmd
-dumpbin /headers build\stub_template.exe | findstr /B /C:"  SECTION HEADER" /C:"   .cdata" /C:"  virtual size" /C:"  size of raw data"
+build.bat TEST
+build.bat EarlyBirdAPC
+build.bat IndirectSC
 ```
 
-You want `.cdata` to:
-1. Exist as a section.
-2. Have **size of raw data ≥ 0x100040** (1 MiB plus the metadata struct).
-   If `size of raw data` is `0`, MSVC put the data in BSS and the magic
-   markers won't be on disk for the builder to find. In that case bump the
-   non-zero initializers in `g_half1_buf` (e.g. add a few `0xCC` bytes near
-   the end) and rebuild.
-3. Start at a file offset > `0x1000` so the `STABLE_REGION` (first 4 KiB
-   hashed by both builder and stub) does not overlap any patched bytes.
-   Standard MSVC layouts put `.cdata` after `.text` and `.rdata`, so this
-   is normally far past `0x1000`.
+This produces `build\stub_template.exe` and automatically copies it to
+`..\Cyber Cripter\Resources\stub_template.exe`, from which the C# builder loads it at runtime.
+
+> To design custom templates, modify `build.bat` so that it can build the new templates.
+
+## Verify that the template can be patched
+
+After building, it is advisable to perform a quick check of the section layout:
+
+```cmd
+dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
+```
+
+The expected properties for `.cdata` (SECTION HEADER #5) are:
+
+1. It exists as a section.
+2. It has **size of raw data ≥ 0x100040** (1 MiB plus the metadata structure).
+   If `size of raw data` is `0`, MSVC placed the data in BSS and the magic markers will not be on disk for the builder to find. In that case, increase the non-zero initializers in `g_half1_buf` (for example, add a few `0xCC` bytes near the end) and rebuild.
+3. It starts at a file offset > `0x1000` so that `STABLE_REGION` (the first 4 KiB hashed by both the builder and the stub) does not overlap any patched bytes.
+   Standard MSVC layouts place `.cdata` after `.text` and `.rdata`, so it is normally well beyond `0x1000`.
 
 ## Layout patched by the builder
 
-`.cdata` section contains, located by 16-byte magic prefixes:
+The `.cdata` section contains the following fields, located by 16-byte magic prefixes:
 
 | Field            | Source magic                              | Size                |
 |------------------|-------------------------------------------|---------------------|
 | `g_meta`         | `M E T A ! C R Y p T e R ! AA BB CC`      | 60 bytes            |
 | `g_half1_buf`    | `H A L F ! O N E ! D A T A DD EE FF`      | 16 + 1 MiB capacity |
 
-PE overlay (after the last section): ciphertext `half2` raw bytes.
+PE overlay (after the last section): raw bytes of the second half of the encrypted shellcode, `half2`.
 
 ## Runtime behavior
 
-1. `GetModuleFileNameA` + `ReadFile` — read self file from disk.
-2. SHA-256 over `heap_marker || self_bytes[0..hash_region_size] || timestamp`.
-   The first 32 bytes of the hash is the AES-256 key.
-3. Reassemble ciphertext: `g_half1_buf[16..16+half1_size]` concatenated with
-   the last `half2_size` bytes of the file (PE overlay).
-4. AES-256-CBC decrypt with PKCS#7 padding using the derived key and the IV
-   stored in `g_meta.iv`.
-5. EarlyBird APC injection into a `notepad.exe` started with `CREATE_SUSPENDED`:
-   `VirtualAllocEx` RWX → `WriteProcessMemory` shellcode →
+1. `GetModuleFileNameA` + `ReadFile`: reads its own file from disk.
+2. SHA-256 over `heap_marker || self_bytes[0..hash_region_size] || timestamp` to obtain the AES-256 key.
+3. Reassembles the encrypted shellcode by joining `half1` and `half2`.
+4. Decrypts the encrypted shellcode with AES-256-CBC and PKCS#7 padding using the derived key and the IV stored in `g_meta.iv`.
+5. Injects the decrypted shellcode through EarlyBird APC into a `notepad.exe` process started with `CREATE_SUSPENDED`:
+
+   `VirtualAllocEx` RW → `WriteProcessMemory` shellcode → `VirtualAllocEx` RX →
    `QueueUserAPC((PAPCFUNC)mem, hThread, 0)` → `ResumeThread`.
 
 The plaintext payload is expected to be **position-independent shellcode**
-(produced by Donut from the original `.exe`); the EarlyBird APC technique
-cannot execute a raw PE.
+(generated by Donut from the original `.exe`); the EarlyBird APC technique cannot execute a raw PE.
