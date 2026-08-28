@@ -1,33 +1,30 @@
 # Cyber Crypter
 
-Crypter educativo para una asignatura de Computer Security. Toma un `.exe`
-arbitrario, lo convierte a shellcode posicional-independiente con
+Crypter educativo desarrollado para mi Trabajo de Fin de Grado de Ingeniería Informática. 
+El proyecto toma un `.exe` arbitrario, lo convierte a shellcode posicional-independiente con
 [Donut](https://github.com/TheWover/donut), lo encripta con una clave AES-256
-única por build, y genera un loader nativo autosuficiente que al ejecutarse
-desencripta el payload e inyecta el shellcode en una instancia suspendida de
-`notepad.exe` mediante **EarlyBird APC injection**.
+única para cada compilación y genera un loader nativo autosuficiente a partir del stub compilado. Al ejecutarse, el loader descifra el payload y lo ejecuta en memoria mediante la técnica implementada por el stub seleccionado en la compilación. 
 
-> Proyecto de uso académico. La idea es estudiar las técnicas que aparecen en
-> análisis de malware (semi-binded payload, derivación dinámica de clave,
-> inyección APC temprana, anti-tamper por hash del propio binario) construyendo
+> **Proyecto de uso exclusivamente académico**: Su objetivo es estudiar las técnicas modernas 
+> que aparecen en análisis de malware (semi-binded payload, derivación dinámica de clave,
+> inyección APC temprana, anti-tamper por hash del propio binario, ...) construyendo
 > un crypter completo de principio a fin.
 
 ## Técnicas implementadas
 
-- **Payload semi-binded híbrido**: el ciphertext se parte en dos.
-  - `half1` (hasta 1 MiB) va embebido en una sección custom `.cdata` del stub.
-  - `half2` (sin límite) se appendea como overlay PE detrás de la última sección.
-  - El stub reensambla `half1 || half2` antes de descifrar.
+- **Payload semi-binded híbrido**: el código cifrado se divide en dos partes:
+  - `half1` (hasta 1 MiB) embebido en una sección personalizada `.cdata` dentro del stub.
+  - `half2` (sin límite de tamaño) se agrega como overlay PE detrás de la última sección.
+  - El stub reensambla `half1 || half2` antes de realizar el descifrado.
 - **Clave AES dinámica**:
   `key = SHA256( heap_marker || stub_file[0..4096] || timestamp )`.
-  - `heap_marker` y `timestamp` se generan en cada build y se almacenan en el
-    metadata embebido.
-  - Los primeros 4 KiB del propio fichero entran en el hash → cualquier
+  - `heap_marker` y `timestamp` se generan en cada compilación y se almacenan en los metadatos embebidos.
+  - Los primeros 4 KiB del propio archivo se incluyen en el cálculo del hash → cualquier
     parcheo de cabeceras PE o `.text` invalida la clave (anti-tamper).
-- **AES-256-CBC con PKCS#7** vía `System.Security.Cryptography` en el builder
+- **Encriptación AES-256-CBC con PKCS#7** mediante `System.Security.Cryptography` en el builder
   y Windows CNG (`bcrypt.dll`) en el stub. El IV es aleatorio por build y se
-  guarda en el metadata.
-- **EarlyBird APC injection** en `notepad.exe` suspendido:
+  guarda en los metadatos embebidos.
+- **EarlyBird APC injection** como técnica de inyección en memoria:
   ```
   CreateProcessA(notepad, CREATE_SUSPENDED)
   VirtualAllocEx(RWX) -> WriteProcessMemory(shellcode)
@@ -57,14 +54,15 @@ Cyber-Crypter-main/
 
 ## Requisitos
 
-- **Visual Studio 2019 / 2022** con la workload **Desarrollo de escritorio con C++**
+- **Visual Studio 2019 / 2022** con la carga de trabajo **Desarrollo de escritorio con C++**
   (necesario para `cl.exe`, `link.exe`, las cabeceras del Windows SDK y `bcrypt.lib`).
-- **.NET Framework 4.8 SDK** (para compilar el builder C#).
+- **.NET Framework 4.8 SDK** (necesario para compilar el builder en C#).
 - **donut.exe** de https://github.com/TheWover/donut/releases.
 
 ## Compilación
 
-### 1) Stub nativo (una sola vez, o cuando se modifique `stub.c`)
+### 1) Stub nativo 
+Estos pasos solo es necesario realizarlos una vez o cada vez que se modifique `stub.c`.
 
 #### 1.1) Instalar las herramientas de compilación de C++
 
@@ -82,7 +80,7 @@ Cyber-Crypter-main/
 2. En el terminal que se abre, navega a la carpeta `stub`:
 
 ```cmd
-cd "\Cyber-Crypter-main\stub"
+cd "\CyberCrypter\stub"
 ```
 
 3. Ejecuta el script de compilación:
@@ -91,11 +89,11 @@ cd "\Cyber-Crypter-main\stub"
 build.bat
 ```
 
-Al finalizar, `build.bat` compila `stub.c`, produciendo `stub/build/stub_template.exe` y lo
-copia automáticamente a `Cyber Cripter\Resources\stub_template.exe` (que es
-donde el builder lo buscará en runtime).
+Al finalizar, `build.bat` compila la variante `stub_EarlyBirdAPC.c`, produciendo `stub/build/stub_template.exe` y lo
+copia automáticamente a `CyberCrypter\Resources\stub_template.exe` (ubicación desde la que el builder buscará el stub
+durante la ejecución).
 
-Verificación rápida del layout (opcional):
+4. Verificación rápida del layout (opcional):
 
 ```cmd
 dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
@@ -107,21 +105,21 @@ mitigación.
 
 ### 2) Builder C#
 
-Abre `Cyber Cripter.sln` en Visual Studio y compila el proyecto.
+Abre `CyberCrypter.sln` en Visual Studio y compila el proyecto.
 
-El programa ejecutable se guardará en `Cyber Cripter\bin\Debug\Cyber Cripter.exe`.
+El programa ejecutable se guardará en `CyberCrypter\bin\Debug\CyberCrypter.exe`.
 
 ### 3) Colocar `donut.exe`
 
-Descarga `donut.exe` y copialo a `Cyber Cripter\bin\Debug\` (junto al
-ejecutable del builder). También lo encuentra si está en el `PATH`.
+Descarga `donut.exe` y copialo a `CyberCrypter\bin\Debug\`, junto al
+ejecutable del builder (también lo encuentra si está en el `PATH`).
 
 > Es muy probable que se deba desactivar el antivirus para la descarga de donut.exe, o agregar el directorio del proyecto a exclusiones de windows defender.
 
 ## Uso
 
 1. Ejecuta `Cyber Cripter.exe`.
-2. **Browse** → selecciona el `.exe` que quieres crypter.
+2. **Browse** → selecciona el ejecutable `.exe` que quieres cryptear para que evada al antivirus.
 3. **ENCRYPT**.
 4. El status panel muestra:
    - tamaño del shellcode generado por Donut,
@@ -134,20 +132,21 @@ ejecutable del builder). También lo encuentra si está en el `PATH`.
 Al ejecutarlo, ese binario:
 - Lee sus propios bytes desde disco.
 - Re-deriva la clave AES con la misma fórmula que usó el builder.
-- Reensambla `half1 || half2` y desencripta.
-- Lanza `notepad.exe` suspendido y le inyecta el shellcode mediante APC.
+- Reensambla y desencripta el código encriptado repartido entre `half1 || half2`.
+- Lanza `notepad.exe` suspendido y le inyecta el shellcode mediante Early Bird APC.
 - El payload original corre dentro del proceso `notepad.exe`.
 
 ## Consideraciones técnicas
 
 - **Donut produce shellcode, no PE.** Es necesario porque EarlyBird APC
-  ejecuta una dirección de memoria como si fuera una función — eso requiere
-  código posicional-independiente, no un PE con cabeceras / IAT / relocations.
+  ejecuta una dirección de memoria como si fuera una función. Eso requiere
+  código posicional-independiente, no un PE con cabeceras, IAT, relocations, ...
 - **El stub no almacena la clave.** Sólo guarda `heap_marker`, `timestamp` e
   `IV`. La clave AES se reconstruye en runtime a partir de estos valores y de
   los primeros 4 KiB del propio fichero.
-- **`Cyber Cripter.exe` y los binarios en `outputs/` son x64.** El stub está
-  compilado con `/MACHINE:X64` y Donut se invoca con `-a 2`.
+- **`CyberCripter.exe` y los binarios en `outputs/` son de arquitectura x64.** El stub está
+  compilado con `/MACHINE:X64` y Donut se invoca con `-a 2` para generar shellcode con esta 
+  misma arquitectura.
 
 ## Aviso
 

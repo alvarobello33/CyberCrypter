@@ -2,9 +2,10 @@
 REM Build script para stub_template.exe (x64).
 REM
 REM Uso:
-REM     build.bat                  -> compila el variant por defecto (EarlyBirdAPC)
-REM     build.bat EarlyBirdAPC     -> compila el stub clásico con APIs Win32
-REM     build.bat IndirectSC       -> compila el stub con indirect system calls
+REM     build.bat                  -> compila el variante por defecto (EarlyBirdAPC)
+REM     build.bat IndirectSC       -> compila la variante del stub utilizada para Debugging (con máximo muestreo de mensajes informativos y sin inyección en memoria)
+REM     build.bat EarlyBirdAPC     -> compila el stub por defecto que utiliza la técnica Early Bird APC Injection
+REM     build.bat IndirectSC       -> compila el stub que utiliza la técnica indirect system calls
 REM
 REM En ambos casos, el binario resultante se copia a
 REM   ..\Cyber Cripter\Resources\stub_template.exe
