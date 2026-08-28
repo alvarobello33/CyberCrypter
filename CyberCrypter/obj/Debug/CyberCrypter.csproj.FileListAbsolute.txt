@@ -1,0 +1,22 @@
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\bin\Debug\Resources\stub_template.exe
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\bin\Debug\Cyber Cripter.exe.config
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\bin\Debug\Cyber Cripter.exe
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\bin\Debug\Cyber Cripter.pdb
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\CyberCrypter.csproj.AssemblyReference.cache
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\Cyber_Cripter.Form1.resources
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\Cyber_Cripter.Properties.Resources.resources
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\CyberCrypter.csproj.GenerateResource.cache
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\CyberCrypter.csproj.CoreCompileInputs.cache
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\Cyber Cripter.exe
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\Cyber Cripter\obj\Debug\Cyber Cripter.pdb
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\bin\Debug\Resources\stub_template.exe
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\bin\Debug\Cyber Cripter.exe.config
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\bin\Debug\Cyber Cripter.exe
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\bin\Debug\Cyber Cripter.pdb
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\CyberCrypter.csproj.AssemblyReference.cache
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\Cyber_Cripter.Form1.resources
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\Cyber_Cripter.Properties.Resources.resources
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\CyberCrypter.csproj.GenerateResource.cache
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\CyberCrypter.csproj.CoreCompileInputs.cache
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\Cyber Cripter.exe
+C:\Users\alvaro\Desktop\la_salle_4\TFG\Crypter\Cyber-Crypter-main\CyberCrypter\obj\Debug\Cyber Cripter.pdb
