@@ -1,9 +1,9 @@
 # Cyber Crypter
 
 Crypter educativo desarrollado para mi Trabajo de Fin de Grado de Ingeniería Informática. 
-El proyecto toma un `.exe` arbitrario, lo convierte a shellcode posicional-independiente con
-[Donut](https://github.com/TheWover/donut), lo encripta con una clave AES-256
-única para cada compilación y genera un loader nativo autosuficiente a partir del stub compilado. Al ejecutarse, el loader descifra el payload y lo ejecuta en memoria mediante la técnica implementada por el stub seleccionado en la compilación. 
+
+El proyecto toma un `.exe` marcado como amenaza por los motores antivirus, lo convierte a shellcode posicional-independiente con [Donut](https://github.com/TheWover/donut), lo encripta con una clave AES-256
+única para cada compilación y genera un loader nativo autosuficiente a partir del stub compilado. Al ejecutarse, el loader descifra el payload y lo ejecuta en memoria mediante la técnica implementada por el stub seleccionado en la compilación, evadiendo un gran número de los motores antivirus modernos. 
 
 > **Proyecto de uso exclusivamente académico**: Su objetivo es estudiar las técnicas modernas 
 > que aparecen en análisis de malware (semi-binded payload, derivación dinámica de clave,
@@ -90,7 +90,7 @@ build.bat
 ```
 
 Al finalizar, `build.bat` compila la variante `stub_EarlyBirdAPC.c`, produciendo `stub/build/stub_template.exe` y lo
-copia automáticamente a `CyberCrypter\Resources\stub_template.exe` (ubicación desde la que el builder buscará el stub
+copia automáticamente a `CyberCrypter\Resources\stub_template.exe` (ubicación en la cual el builder buscará el stub
 durante la ejecución).
 
 4. Verificación rápida del layout (opcional):
@@ -100,8 +100,7 @@ dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"na
 ```
 
 `.cdata` (SECTION HEADER #5) debe tener `size of raw data` ≥ `100040`. Si sale `0` significa que
-MSVC truncó el buffer por optimización BSS; ver `stub/README.md` para la
-mitigación.
+MSVC truncó el buffer por optimización BSS. Ver `stub/README.md` para la mitigación del error.
 
 ### 2) Builder C#
 
@@ -111,8 +110,8 @@ El programa ejecutable se guardará en `CyberCrypter\bin\Debug\CyberCrypter.exe`
 
 ### 3) Colocar `donut.exe`
 
-Descarga `donut.exe` y copialo a `CyberCrypter\bin\Debug\`, junto al
-ejecutable del builder (también lo encuentra si está en el `PATH`).
+Descarga `donut.exe` y copialo en `CyberCrypter\bin\Debug\`, junto al
+ejecutable del builder (también se puede colocar en el `PATH`).
 
 > Es muy probable que se deba desactivar el antivirus para la descarga de donut.exe, o agregar el directorio del proyecto a exclusiones de windows defender.
 
