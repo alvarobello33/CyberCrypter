@@ -8,7 +8,7 @@ REM     build.bat EarlyBirdAPC     -> compila el stub por defecto que utiliza la
 REM     build.bat IndirectSC       -> compila el stub que utiliza la técnica indirect system calls
 REM
 REM En ambos casos, el binario resultante se copia a
-REM   ..\Cyber Cripter\Resources\stub_template.exe
+REM   ..\CyberCrypter\Resources\stub_template.exe
 REM para que el builder C# lo recoja en runtime.
 REM
 REM Ejecutar desde una "x64 Native Tools Command Prompt for VS" para que
@@ -80,7 +80,7 @@ REM ---------------- post-build ----------------
 :ok
 echo.
 echo Built: %~dp0build\stub_template.exe   (variant: %VARIANT%)
-copy /y "build\stub_template.exe" "..\Cyber Cripter\Resources\stub_template.exe" >nul
+copy /y "build\stub_template.exe" "..\CyberCrypter\Resources\stub_template.exe" >nul
 if errorlevel 1 (
     echo Could not auto-copy. Do it manually.
 ) else (
