@@ -91,36 +91,6 @@ namespace Cyber_Cripter.Properties {
         }
         
         /// <summary>
-        ///   Busca una cadena traducida similar a using System;
-        ///using System.Collections.Generic;
-        ///using System.Data;
-        ///using System.Drawing;
-        ///using System.Text;
-        ///using System.Windows.Forms;
-        ///using System.IO;
-        ///using System.Runtime.InteropServices;
-        ///using System.Resources;
-        ///using System.Security.Cryptography;
-        ///using System.Reflection;
-        ///using Microsoft.Win32;
-        ///
-        ///static class Program
-        ///{
-        ///    [STAThread]
-        ///    static void Main()
-        ///    {
-        ///        Application.EnableVisualStyles();
-        ///        Application.SetCompatibleTextRenderingDefault(false);
-        ///        Application.Run(new frmOne());
-        ///  [resto de la cadena truncado]&quot;;.
-        /// </summary>
-        internal static string Stub {
-            get {
-                return ResourceManager.GetString("Stub", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
         /// </summary>
         internal static System.Drawing.Bitmap titleCrypter {
