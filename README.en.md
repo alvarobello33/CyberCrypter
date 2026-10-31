@@ -1,10 +1,18 @@
-# Cyber Crypter
+<h1 align="center">Cyber Crypter</h1>
 
-An educational crypter developed for my Computer Engineering Bachelor's Thesis.
+<p align="center">
+  <em>An educational crypter developed for my Computer Engineering Bachelor's Thesis.</em>
+</p>
 
-The project takes an `.exe` flagged as a threat by antivirus engines, converts it into position-independent shellcode with [Donut](https://github.com/TheWover/donut), encrypts it with a unique AES-256 key for each build, and generates a self-contained native loader from the compiled stub. When executed, the loader decrypts the payload and executes it in memory using the technique implemented by the stub selected at build time, evading a large number of modern antivirus engines.
+---
 
-> **Project for academic use only**: Its purpose is to study modern techniques found in malware analysis (semi-bound payloads, dynamic key derivation, EarlyBird APC injection, anti-tamper through hashing of the binary itself, ...) by building a complete crypter from start to finish.
+The project takes an `.exe` flagged as a threat by antivirus engines, converts it into position-independent shellcode with [Donut](https://github.com/TheWover/donut), encrypts it with an AES-256 key
+unique to each build, and generates a self-contained native loader from the compiled stub. When executed, the loader decrypts the payload and executes it in memory using the technique implemented by the stub selected at build time, evading a large number of modern antivirus engines.
+
+> **Project for academic use only**: Its purpose is to study modern techniques
+> found in malware analysis (semi-bound payloads, dynamic key derivation,
+> early APC injection, anti-tamper through hashing of the binary itself, ...) by building
+> a complete crypter from start to finish.
 
 ## Implemented techniques
 
@@ -12,22 +20,33 @@ The project takes an `.exe` flagged as a threat by antivirus engines, converts i
   - `half1` (up to 1 MiB) embedded in a custom `.cdata` section within the stub.
   - `half2` (unlimited size) appended as a PE overlay after the last section.
   - The stub reassembles `half1 || half2` before decryption.
+
 - **Dynamic AES key**:
-  `key = SHA256( heap_marker || stub_file[0..4096] || timestamp )`.
   - `heap_marker` and `timestamp` are generated for each build and stored in the embedded metadata.
-  - The first 4 KiB of the file itself are included in the hash calculation → any patching of the PE headers or `.text` invalidates the key (anti-tamper).
-- **AES-256-CBC encryption with PKCS#7** using `System.Security.Cryptography` in the builder and Windows CNG (`bcrypt.dll`) in the stub. The IV is random for each build and stored in the embedded metadata.
+  - The first 4 KiB of the file itself are included in the hash calculation → any
+    patching of the PE headers or `.text` invalidates the key (anti-tamper).
+
+<p align="center">
+  <a href="/doc_images/KeyComposition.png">
+    <img src="/doc_images/KeyComposition.png" alt="Key composition" width="567">
+  </a>
+</p>
+
+- **AES-256-CBC encryption with PKCS#7** using `System.Security.Cryptography` in the builder
+  and Windows CNG (`bcrypt.dll`) in the stub. The IV is random for each build and
+  stored in the embedded metadata.
+
 - **EarlyBird APC injection** as the in-memory injection technique:
-  ```
-  CreateProcessA(notepad, CREATE_SUSPENDED)
-  VirtualAllocEx(RWX) -> WriteProcessMemory(shellcode)
-  QueueUserAPC((PAPCFUNC)mem, hThread, 0)
-  ResumeThread
-  ```
+
+<p align="center">
+  <a href="/doc_images/EarlyBirdAPCInjection.jpg">
+    <img src="/doc_images/EarlyBirdAPCInjection.jpg" alt="Early Bird APC Injection Technique" width="567">
+  </a>
+</p>
 
 ## Repository structure
 
-```
+```text
 Cyber-Crypter-main/
 ├── Cyber Cripter.sln
 ├── Cyber Cripter/                # Builder (C# WinForms, .NET Framework 4.8)
@@ -46,10 +65,19 @@ Cyber-Crypter-main/
 └── outputs/                      # destination for encrypted binaries
 ```
 
+<p align="center">
+  <a href="/doc_images/CrypterModules.png">
+    <img src="/doc_images/CrypterModules.png" alt="Crypter modules schema" width="567">
+  </a>
+</p>
+
 ## Prerequisites
 
-- **Visual Studio 2019 / 2022** with the **Desktop development with C++** workload (required for `cl.exe`, `link.exe`, Windows SDK headers, and `bcrypt.lib`).
+- **Visual Studio 2019 / 2022** with the **Desktop development with C++** workload
+  (required for `cl.exe`, `link.exe`, Windows SDK headers, and `bcrypt.lib`).
+
 - **.NET Framework 4.8 SDK** (required to compile the C# builder).
+
 - **donut.exe** from https://github.com/TheWover/donut/releases.
 
 ## Build
@@ -69,28 +97,32 @@ These steps only need to be performed once, or whenever `stub.c` is modified.
 
 #### 1.2) Build the stub
 
-1. Open the Start menu, type `x64 Native Tools`, and click **"x64 Native Tools Command Prompt for VS 2022"**.
+1. Open the Start menu, type `x64 Native Tools`, and click
+   **"x64 Native Tools Command Prompt for VS 2022"**.
 2. In the terminal that opens, navigate to the `stub` folder:
 
-```cmd
-cd "\CyberCrypter\stub"
-```
+   ```cmd
+   cd "\CyberCrypter\stub"
+   ```
 
 3. Run the build script:
 
-```cmd
-build.bat
-```
+   ```cmd
+   build.bat
+   ```
 
-After it completes, `build.bat` compiles the `stub_EarlyBirdAPC.c` variant, producing `stub/build/stub_template.exe` and automatically copying it to `CyberCrypter\Resources\stub_template.exe` (the location from which the builder looks up the stub at runtime).
+   After it completes, `build.bat` compiles the `stub_EarlyBirdAPC.c` variant, producing `stub/build/stub_template.exe` and
+   automatically copying it to `CyberCrypter\Resources\stub_template.exe` (the location where the builder looks for the stub
+   at runtime).
 
 4. Quick layout check (optional):
 
-```cmd
-dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
-```
+   ```cmd
+   dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
+   ```
 
-`.cdata` (SECTION HEADER #5) must have `size of raw data` ≥ `100040`. If it is `0`, MSVC truncated the buffer due to BSS optimization. See `stub/README.md` for error mitigation.
+   `.cdata` (SECTION HEADER #5) must have `size of raw data` ≥ `100040`. If it is `0`,
+   MSVC truncated the buffer due to BSS optimization. See `stub/README.md` for error mitigation.
 
 ### 2) C# builder
 
@@ -100,7 +132,8 @@ The executable program will be saved to `CyberCrypter\bin\Debug\CyberCrypter.exe
 
 ### 3) Place `donut.exe`
 
-Download `donut.exe` and copy it to `CyberCrypter\bin\Debug\`, alongside the builder executable (it can also be placed in the `PATH`).
+Download `donut.exe` and copy it to `CyberCrypter\bin\Debug\`, alongside the
+builder executable (it can also be placed in the `PATH`).
 
 > You will very likely need to disable antivirus protection to download donut.exe, or add the project directory to Windows Defender exclusions.
 
@@ -127,10 +160,28 @@ When it is executed, that binary:
 
 ## Technical considerations
 
-- **Donut produces shellcode, not a PE.** This is necessary because EarlyBird APC executes a memory address as if it were a function. That requires position-independent code, not a PE with headers, IAT, relocations, etc.
-- **The stub does not store the key.** It only stores `heap_marker`, `timestamp`, and the `IV`. The AES key is reconstructed at runtime from these values and the first 4 KiB of the file itself.
-- **`CyberCripter.exe` and the binaries in `outputs/` use the x64 architecture.** The stub is compiled with `/MACHINE:X64` and Donut is invoked with `-a 2` to generate shellcode for the same architecture.
+- **Donut produces shellcode, not a PE.** This is necessary because EarlyBird APC
+  executes a memory address as if it were a function. That requires
+  position-independent code, not a PE with headers, IAT, relocations, ...
+
+- **The stub does not store the key.** It only stores `heap_marker`, `timestamp`, and
+  the `IV`. The AES key is reconstructed at runtime from these values and
+  the first 4 KiB of the file itself.
+
+- **`CyberCripter.exe` and the binaries in `outputs/` use the x64 architecture.** The stub is
+  compiled with `/MACHINE:X64` and Donut is invoked with `-a 2` to generate shellcode for
+  the same architecture.
+
+## Results
+
+<p align="center">
+  <a href="/doc_images/CrypterEarlyBirdAPC_Results.png">
+    <img src="/doc_images/CrypterEarlyBirdAPC_Results.png" alt="Early Bird APC Injection Stub Results" width="567">
+  </a>
+</p>
 
 ## Notice
 
-This code is maintained solely for educational and research purposes. Its use outside an authorized academic environment or an isolated lab is the responsibility of the person running it.
+> **This code is maintained solely for educational and research purposes.**
+> Its use outside an authorized academic environment or an isolated lab
+> is the responsibility of the person running it.
