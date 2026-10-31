@@ -17,20 +17,18 @@ El proyecto toma un `.exe` marcado como amenaza por los motores antivirus, lo co
   - `half2` (sin límite de tamaño) se agrega como overlay PE detrás de la última sección.
   - El stub reensambla `half1 || half2` antes de realizar el descifrado.
 - **Clave AES dinámica**:
-  `key = SHA256( heap_marker || stub_file[0..4096] || timestamp )`.
   - `heap_marker` y `timestamp` se generan en cada compilación y se almacenan en los metadatos embebidos.
   - Los primeros 4 KiB del propio archivo se incluyen en el cálculo del hash → cualquier
     parcheo de cabeceras PE o `.text` invalida la clave (anti-tamper).
+
+![Key composition](/doc_images/KeyComposition.png)
+
 - **Encriptación AES-256-CBC con PKCS#7** mediante `System.Security.Cryptography` en el builder
   y Windows CNG (`bcrypt.dll`) en el stub. El IV es aleatorio por build y se
   guarda en los metadatos embebidos.
 - **EarlyBird APC injection** como técnica de inyección en memoria:
-  ```
-  CreateProcessA(notepad, CREATE_SUSPENDED)
-  VirtualAllocEx(RWX) -> WriteProcessMemory(shellcode)
-  QueueUserAPC((PAPCFUNC)mem, hThread, 0)
-  ResumeThread
-  ```
+
+ ![Early Bird APC Injection Technique](/doc_images/EarlyBirdAPCInjection.jpg)
 
 ## Estructura del repositorio
 
@@ -52,6 +50,8 @@ Cyber-Crypter-main/
 │   └── README.md
 └── outputs/                      # destino de los binarios crypteados
 ```
+
+![Crypter modules schema](/doc_images/CrypterModules.png)
 
 ## Requisitos
 
@@ -147,6 +147,9 @@ Al ejecutarlo, ese binario:
 - **`CyberCripter.exe` y los binarios en `outputs/` son de arquitectura x64.** El stub está
   compilado con `/MACHINE:X64` y Donut se invoca con `-a 2` para generar shellcode con esta 
   misma arquitectura.
+
+## Resultados
+![Resultadps de Early Bird APC Injection Stub](/doc_images/CrypterEarlyBirdAPC_Results.png)
 
 ## Aviso
 
