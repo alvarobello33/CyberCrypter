@@ -1,6 +1,10 @@
-# Cyber Crypter
+<h1 align="center">Cyber Crypter</h1>
 
-Crypter educativo desarrollado para mi Trabajo de Fin de Grado de Ingeniería Informática. 
+<p align="center">
+  <em>Crypter educativo desarrollado para mi Trabajo de Fin de Grado de Ingeniería Informática.</em>
+</p>
+
+---
 
 El proyecto toma un `.exe` marcado como amenaza por los motores antivirus, lo convierte a shellcode posicional-independiente con [Donut](https://github.com/TheWover/donut), lo encripta con una clave AES-256
 única para cada compilación y genera un loader nativo autosuficiente a partir del stub compilado. Al ejecutarse, el loader descifra el payload y lo ejecuta en memoria mediante la técnica implementada por el stub seleccionado en la compilación, evadiendo un gran número de los motores antivirus modernos. 
@@ -16,23 +20,33 @@ El proyecto toma un `.exe` marcado como amenaza por los motores antivirus, lo co
   - `half1` (hasta 1 MiB) embebido en una sección personalizada `.cdata` dentro del stub.
   - `half2` (sin límite de tamaño) se agrega como overlay PE detrás de la última sección.
   - El stub reensambla `half1 || half2` antes de realizar el descifrado.
+
 - **Clave AES dinámica**:
   - `heap_marker` y `timestamp` se generan en cada compilación y se almacenan en los metadatos embebidos.
   - Los primeros 4 KiB del propio archivo se incluyen en el cálculo del hash → cualquier
     parcheo de cabeceras PE o `.text` invalida la clave (anti-tamper).
 
-![Key composition](/doc_images/KeyComposition.png)
+<p align="center">
+  <a href="/doc_images/KeyComposition.png">
+    <img src="/doc_images/KeyComposition.png" alt="Key composition" width="567">
+  </a>
+</p>
 
 - **Encriptación AES-256-CBC con PKCS#7** mediante `System.Security.Cryptography` en el builder
   y Windows CNG (`bcrypt.dll`) en el stub. El IV es aleatorio por build y se
   guarda en los metadatos embebidos.
+
 - **EarlyBird APC injection** como técnica de inyección en memoria:
 
- ![Early Bird APC Injection Technique](/doc_images/EarlyBirdAPCInjection.jpg)
+<p align="center">
+  <a href="/doc_images/EarlyBirdAPCInjection.jpg">
+    <img src="/doc_images/EarlyBirdAPCInjection.jpg" alt="Early Bird APC Injection Technique" width="567">
+  </a>
+</p>
 
 ## Estructura del repositorio
 
-```
+```text
 Cyber-Crypter-main/
 ├── Cyber Cripter.sln
 ├── Cyber Cripter/                # Builder (C# WinForms, .NET Framework 4.8)
@@ -51,18 +65,25 @@ Cyber-Crypter-main/
 └── outputs/                      # destino de los binarios crypteados
 ```
 
-![Crypter modules schema](/doc_images/CrypterModules.png)
+<p align="center">
+  <a href="/doc_images/CrypterModules.png">
+    <img src="/doc_images/CrypterModules.png" alt="Crypter modules schema" width="567">
+  </a>
+</p>
 
 ## Requisitos
 
 - **Visual Studio 2019 / 2022** con la carga de trabajo **Desarrollo de escritorio con C++**
   (necesario para `cl.exe`, `link.exe`, las cabeceras del Windows SDK y `bcrypt.lib`).
+
 - **.NET Framework 4.8 SDK** (necesario para compilar el builder en C#).
+
 - **donut.exe** de https://github.com/TheWover/donut/releases.
 
 ## Compilación
 
-### 1) Stub nativo 
+### 1) Stub nativo
+
 Estos pasos solo es necesario realizarlos una vez o cada vez que se modifique `stub.c`.
 
 #### 1.1) Instalar las herramientas de compilación de C++
@@ -80,28 +101,28 @@ Estos pasos solo es necesario realizarlos una vez o cada vez que se modifique `s
    **"x64 Native Tools Command Prompt for VS 2022"**.
 2. En el terminal que se abre, navega a la carpeta `stub`:
 
-```cmd
-cd "\CyberCrypter\stub"
-```
+   ```cmd
+   cd "\CyberCrypter\stub"
+   ```
 
 3. Ejecuta el script de compilación:
 
-```cmd
-build.bat
-```
+   ```cmd
+   build.bat
+   ```
 
-Al finalizar, `build.bat` compila la variante `stub_EarlyBirdAPC.c`, produciendo `stub/build/stub_template.exe` y lo
-copia automáticamente a `CyberCrypter\Resources\stub_template.exe` (ubicación en la cual el builder buscará el stub
-durante la ejecución).
+   Al finalizar, `build.bat` compila la variante `stub_EarlyBirdAPC.c`, produciendo `stub/build/stub_template.exe` y lo
+   copia automáticamente a `CyberCrypter\Resources\stub_template.exe` (ubicación en la cual el builder buscará el stub
+   durante la ejecución).
 
 4. Verificación rápida del layout (opcional):
 
-```cmd
-dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
-```
+   ```cmd
+   dumpbin /headers build\stub_template.exe | findstr /I /C:"SECTION HEADER" /C:"name" /C:"size of raw data"
+   ```
 
-`.cdata` (SECTION HEADER #5) debe tener `size of raw data` ≥ `100040`. Si sale `0` significa que
-MSVC truncó el buffer por optimización BSS. Ver `stub/README.md` para la mitigación del error.
+   `.cdata` (SECTION HEADER #5) debe tener `size of raw data` ≥ `100040`. Si sale `0` significa que
+   MSVC truncó el buffer por optimización BSS. Ver `stub/README.md` para la mitigación del error.
 
 ### 2) Builder C#
 
@@ -130,6 +151,7 @@ ejecutable del builder (también se puede colocar en el `PATH`).
 5. El binario crypteado aparece en `outputs\<nombre>_crypted.exe`.
 
 Al ejecutarlo, ese binario:
+
 - Lee sus propios bytes desde disco.
 - Re-deriva la clave AES con la misma fórmula que usó el builder.
 - Reensambla y desencripta el código encriptado repartido entre `half1 || half2`.
@@ -141,18 +163,25 @@ Al ejecutarlo, ese binario:
 - **Donut produce shellcode, no PE.** Es necesario porque EarlyBird APC
   ejecuta una dirección de memoria como si fuera una función. Eso requiere
   código posicional-independiente, no un PE con cabeceras, IAT, relocations, ...
+
 - **El stub no almacena la clave.** Sólo guarda `heap_marker`, `timestamp` e
   `IV`. La clave AES se reconstruye en runtime a partir de estos valores y de
   los primeros 4 KiB del propio fichero.
+
 - **`CyberCripter.exe` y los binarios en `outputs/` son de arquitectura x64.** El stub está
   compilado con `/MACHINE:X64` y Donut se invoca con `-a 2` para generar shellcode con esta 
   misma arquitectura.
 
 ## Resultados
-![Resultadps de Early Bird APC Injection Stub](/doc_images/CrypterEarlyBirdAPC_Results.png)
+
+<p align="center">
+  <a href="/doc_images/CrypterEarlyBirdAPC_Results.png">
+    <img src="/doc_images/CrypterEarlyBirdAPC_Results.png" alt="Resultadps de Early Bird APC Injection Stub" width="567">
+  </a>
+</p>
 
 ## Aviso
 
-Este código se mantiene únicamente con fines docentes y de investigación.
-Su uso fuera de un entorno académico autorizado o de un laboratorio aislado
-es responsabilidad de quien lo ejecute.
+> **Este código se mantiene únicamente con fines docentes y de investigación.**
+> Su uso fuera de un entorno académico autorizado o de un laboratorio aislado
+> es responsabilidad de quien lo ejecute.
